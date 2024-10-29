@@ -15,6 +15,12 @@ type Config struct {
 	ACUNETIX_API_KEY string `yaml:"acunetix_apikey"`
 	ZAP_API_KEY      string `yaml:"zap_apikey"`
 	SEMGREP_API_KEY  string `yaml:"semgrep_apikey"`
+	DB_HOST          string `yaml:"db_host"`
+	DB_PORT          string `yaml:"db_port"`
+	DB_USER          string `yaml:"db_user"`
+	DB_PASSWORD      string `yaml:"db_pass"`
+	DB_NAME          string `yaml:"db_name"`
+	SSLMode          string `yaml:"db_sslmode"`
 }
 
 func (conf *Config) GetConfig() *Config {
