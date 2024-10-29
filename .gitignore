@@ -1,0 +1,9 @@
+config.yml
+*.yml
+*.yaml
+
+*.exe
+*.test
+*.prof
+
+*.log
