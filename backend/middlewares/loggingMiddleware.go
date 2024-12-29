@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/grealyve/lutenix/logger"
+	"github.com/grealyve/lutenix/backend/logger"
 	log "github.com/sirupsen/logrus"
 )
 

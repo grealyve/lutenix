@@ -1,10 +1,7 @@
 package config
 
 import (
-	"log"
 	"os"
-
-	"github.com/grealyve/lutenix/logger"
 
 	"gopkg.in/yaml.v3"
 )
@@ -21,18 +18,20 @@ type Config struct {
 	DB_PASSWORD      string `yaml:"db_pass"`
 	DB_NAME          string `yaml:"db_name"`
 	SSLMode          string `yaml:"db_sslmode"`
+	SECRET           string `yaml:"jwt_secret"`
 }
 
-func (conf *Config) GetConfig() *Config {
+var ConfigInstance *Config
+
+func LoadConfig() {
+	ConfigInstance = &Config{}
 	yamlFile, err := os.ReadFile("config.yaml")
 	if err != nil {
-		logger.Log.Printf("yamlFile.Get err  #%v ", err)
+		panic(err)
 	}
-	err = yaml.Unmarshal(yamlFile, conf)
+
+	err = yaml.Unmarshal(yamlFile, ConfigInstance)
 	if err != nil {
-		log.Fatalf("Unmarshal: %v", err)
+		panic(err)
 	}
-
-	return conf
-
 }
