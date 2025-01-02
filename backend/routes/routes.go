@@ -2,7 +2,7 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/grealyve/lutenix/backend/controller"
+	"github.com/grealyve/lutenix/controller"
 )
 
 func AcunetixRoute(acunetixRoutes *gin.Engine) {

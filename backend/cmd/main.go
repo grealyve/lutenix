@@ -2,17 +2,19 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/grealyve/lutenix/backend/config"
-	"github.com/grealyve/lutenix/backend/database"
-	"github.com/grealyve/lutenix/backend/logger"
-	"github.com/grealyve/lutenix/backend/middlewares"
-	"github.com/grealyve/lutenix/backend/routes"
+	"github.com/grealyve/lutenix/config"
+	"github.com/grealyve/lutenix/controller"
+	"github.com/grealyve/lutenix/database"
+	"github.com/grealyve/lutenix/logger"
+	"github.com/grealyve/lutenix/middlewares"
+	"github.com/grealyve/lutenix/routes"
 )
 
 func main() {
 
 	config.LoadConfig()
 	logger.Log.Println("Configuration loaded successfully")
+	authController := controller.NewAuthController()
 
 	// Connect to the database
 	dsn := "host=" + config.ConfigInstance.DB_HOST +
@@ -24,6 +26,8 @@ func main() {
 	database.ConnectDB(dsn)
 	logger.Log.Println("Database connected successfully")
 
+	database.ConnectRedis("localhost:6379")
+
 	router := gin.Default()
 
 	router.Use(gin.Recovery())
@@ -34,7 +38,7 @@ func main() {
 	routes.AcunetixRoute(router)
 	routes.AdminRoutes(router)
 	routes.SemgrepRoutes(router)
-	routes.UserRoutes(router)
+	routes.UserRoutes(router, authController)
 	routes.ZapRoutes(router)
 
 	router.Run("localhost:4040")

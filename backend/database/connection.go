@@ -1,25 +1,39 @@
 package database
 
 import (
-	"github.com/grealyve/lutenix/backend/logger"
-	"github.com/grealyve/lutenix/backend/models"
+	"context"
+	"time"
+
+	"github.com/grealyve/lutenix/logger"
+	"github.com/grealyve/lutenix/models"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
-var DB *gorm.DB
+var (
+	DB          *gorm.DB
+	RedisClient *redis.Client
+)
 
 // ConnectDB is a function to connect to the database
 func ConnectDB(dsn string) {
-	DB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	var err error
+	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic(err)
 	}
 
 	db, err := DB.DB()
+	if err != nil {
+		panic(err)
+	}
+
 	if err := db.Ping(); err != nil {
 		panic(err)
 	}
+
+	DB.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
 
 	if err := autoMigrate(DB); err != nil {
 		logger.Log.Errorf("Migrating table error: %v", err)
@@ -27,15 +41,37 @@ func ConnectDB(dsn string) {
 }
 
 func autoMigrate(db *gorm.DB) error {
+	if err := db.AutoMigrate(&models.Company{}); err != nil {
+		return err
+	}
+
 	if err := db.AutoMigrate(
 		&models.User{},
-		&models.Company{},
 		&models.Scan{},
 		&models.Finding{},
 		&models.Report{},
-		&models.ScannerSetting{}); err != nil {
+		&models.ScannerSetting{},
+	); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func ConnectRedis(redisURL string) {
+	RedisClient = redis.NewClient(&redis.Options{
+		Addr: redisURL,
+	})
+
+	if err := RedisClient.Ping(context.Background()).Err(); err != nil {
+		panic(err)
+	}
+}
+
+func AddTokenToBlacklist(token string) error {
+	return RedisClient.Set(context.Background(), "blacklist:"+token, true, 24*time.Hour).Err()
+}
+
+func IsTokenBlacklisted(token string) (bool, error) {
+	return RedisClient.Get(context.Background(), "blacklist:"+token).Bool()
 }

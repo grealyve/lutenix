@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/grealyve/lutenix/backend/services"
+	"github.com/grealyve/lutenix/services"
 )
 
 type ScanController struct {
