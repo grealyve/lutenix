@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grealyve/lutenix/logger"
 	"github.com/grealyve/lutenix/models"
 	"github.com/redis/go-redis/v9"
@@ -74,4 +75,18 @@ func AddTokenToBlacklist(token string) error {
 
 func IsTokenBlacklisted(token string) (bool, error) {
 	return RedisClient.Get(context.Background(), "blacklist:"+token).Bool()
+}
+
+// TODO: Bu SQL sorgusu companye göre yapılmalı.
+func GetAPIKey(scanner string, companyID uuid.UUID) (string, error) {
+	var result struct {
+		APIKey string `gorm:"column:api_key"`
+	}
+	err := DB.Table("scanner_setting").
+		Where("scanner = ? AND company_id = ?", scanner, companyID).
+		First(&result).Error
+	if err != nil {
+		return "", err
+	}
+	return result.APIKey, nil
 }

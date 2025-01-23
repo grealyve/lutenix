@@ -33,7 +33,6 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middlewares.LoggingMiddleware())
 	router.Use(middlewares.CorsMiddleware())
-	router.Use(middlewares.Authentication())
 
 	routes.AcunetixRoute(router)
 	routes.AdminRoutes(router)

@@ -3,6 +3,7 @@ package routes
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/grealyve/lutenix/controller"
+	"github.com/grealyve/lutenix/middlewares"
 )
 
 func AcunetixRoute(acunetixRoutes *gin.Engine) {
@@ -23,8 +24,10 @@ func SemgrepRoutes(semgrepRoutes *gin.Engine) {
 }
 
 func UserRoutes(userRoutes *gin.Engine, authController *controller.AuthController) {
+	userController := controller.NewUserController()
 	v1 := userRoutes.Group("/api/v1")
 	v1.POST("/users/login", authController.Login)
+	v1.GET("/profile", middlewares.Authentication(), userController.GetMyProfile)
 
 }
 
@@ -32,4 +35,10 @@ func ZapRoutes(zapRoutes *gin.Engine) {
 	v1 := zapRoutes.Group("/api/v1")
 	v1.GET("/zap/")
 
+}
+
+func SetupRoutes(r *gin.Engine) {
+	scanController := controller.NewScanController()
+	v1 := r.Group("/api/v1")
+	v1.POST("/scan", scanController.StartScan)
 }
