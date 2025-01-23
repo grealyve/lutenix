@@ -23,47 +23,6 @@ func NewAuthController() *AuthController {
 	}
 }
 
-func (ac *AuthController) Signup(c *gin.Context) {
-	var body struct {
-		Email    string    `json:"email"`
-		Password string    `json:"password"`
-		Role     string    `json:"role"`
-		Company  uuid.UUID `json:"company"`
-	}
-
-	if c.BindJSON(&body) != nil {
-		logger.Log.Errorln("Invalid request")
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "Invalid request",
-		})
-		return
-	}
-
-	hashedPassword, err := ac.AuthService.HashPassword(body.Password)
-	if err != nil {
-		logger.Log.Errorln("Error hashing password")
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "An error occurred",
-		})
-		return
-	}
-
-	user := models.User{
-		Email:     body.Email,
-		Password:  hashedPassword,
-		Role:      body.Role,
-		CompanyID: body.Company,
-	}
-
-	database.DB.Create(&user)
-
-	logger.Log.Debugln("User created successfully")
-	c.JSON(200, gin.H{
-		"user":    user,
-		"message": "User created successfully",
-	})
-}
-
 // Login is a function to authenticate the user
 func (ac *AuthController) Login(c *gin.Context) {
 	var body struct {
@@ -72,7 +31,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 	}
 
 	if c.BindJSON(&body) != nil {
-		logger.Log.Println("Invalid request")
+		logger.Log.Println("Invalid request: body doesn't match struct", body.Email, body.Password)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Invalid request",
 		})

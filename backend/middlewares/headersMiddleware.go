@@ -9,7 +9,7 @@ import (
 // Fixes the CORS issues
 func CorsMiddleware() gin.HandlerFunc {
 
-	expectedHost := "localhost:8080"
+	expectedHost := "localhost:4040"
 
 	return func(c *gin.Context) {
 		if c.Request.Host != expectedHost {

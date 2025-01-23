@@ -26,8 +26,11 @@ func (s *AuthService) GenerateToken(userID uuid.UUID, role string) (string, erro
 
 func (s *AuthService) CheckPasswordHash(password, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-	logger.Log.Errorf("Error comparing password hash: %v", err)
-	return err == nil
+	if err != nil {
+		logger.Log.Errorf("Error comparing password hash: %v", err)
+		return false
+	}
+	return true
 }
 
 func (s *AuthService) HashPassword(password string) (string, error) {
