@@ -6,9 +6,14 @@ import (
 	"github.com/grealyve/lutenix/middlewares"
 )
 
+var(
+	scanController = controller.NewScanController()
+	userController = controller.NewUserController()
+)
+
 func AcunetixRoute(acunetixRoutes *gin.Engine) {
 	v1 := acunetixRoutes.Group("/api/v1")
-	v1.POST("/acunetix/")
+	v1.POST("/acunetix/", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
 }
 
 func AdminRoutes(adminRoutes *gin.Engine) {
@@ -19,12 +24,10 @@ func AdminRoutes(adminRoutes *gin.Engine) {
 
 func SemgrepRoutes(semgrepRoutes *gin.Engine) {
 	v1 := semgrepRoutes.Group("/api/v1")
-	v1.GET("/semgrep/")
-
+	v1.GET("/semgrep/", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
 }
 
 func UserRoutes(userRoutes *gin.Engine, authController *controller.AuthController) {
-	userController := controller.NewUserController()
 	v1 := userRoutes.Group("/api/v1")
 	v1.POST("/users/login", authController.Login)
 	v1.GET("/profile", middlewares.Authentication(), userController.GetMyProfile)
@@ -33,12 +36,10 @@ func UserRoutes(userRoutes *gin.Engine, authController *controller.AuthControlle
 
 func ZapRoutes(zapRoutes *gin.Engine) {
 	v1 := zapRoutes.Group("/api/v1")
-	v1.GET("/zap/")
-
+	v1.GET("/zap/", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
 }
 
-func SetupRoutes(r *gin.Engine) {
-	scanController := controller.NewScanController()
+func ScanRoutes(r *gin.Engine) {
 	v1 := r.Group("/api/v1")
-	v1.POST("/scan", scanController.StartScan)
+	v1.POST("/scan", middlewares.Authentication(), middlewares.Authorization("scan", "create"), scanController.StartScan)
 }

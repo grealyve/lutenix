@@ -16,6 +16,7 @@ var (
 
 type AssetService struct{}
 
+// Fetches Target data from the Acunetix server.
 func (a *AssetService) GetAllTargetsAcunetix() (map[string]string, error) {
 	assetUrlTargetIdMap := make(map[string]string)
 	// Define initial cursor as empty string

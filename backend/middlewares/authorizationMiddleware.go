@@ -4,29 +4,49 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
+
+var permissionMap = map[string]map[string][]string{
+	"admin": {
+		"scan":    {"create", "read", "update", "delete"},
+		"scanner": {"use", "configure"},
+		"user":    {"read", "create", "update", "delete"},
+	},
+	"user": {
+		"scan":    {"create", "read", "update", "delete"},
+		"scanner": {"use", "configure"},
+		"user":    {"read"},
+	},
+}
 
 func Authorization(resource string, action string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, _ := c.Get("userID") // Authentication middleware'inden al
-		role, _ := c.Get("role")
-
-		requestedUserID, err := uuid.Parse(c.Param("id"))
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz kaynak ID"})
+		// Authentication middleware'den gelen role'ü al
+		role, exists := c.Get("role")
+		if !exists {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Rol bilgisi bulunamadı"})
 			c.Abort()
 			return
 		}
 
-		if resource == "user" && action == "read" {
-			if role != "admin" && userID != requestedUserID {
-				c.JSON(http.StatusForbidden, gin.H{"error": "Bu kaynağa erişim yetkiniz yok"})
-				c.Abort()
-				return
+		// Role string'e çevir
+		roleStr := role.(string)
+
+		// Role için izinleri kontrol et
+		if permissions, ok := permissionMap[roleStr]; ok {
+			if resourcePerms, ok := permissions[resource]; ok {
+				// İstenen action'ın izinler arasında olup olmadığını kontrol et
+				for _, perm := range resourcePerms {
+					if perm == action {
+						c.Next()
+						return
+					}
+				}
 			}
 		}
 
-		c.Next()
+		// İzin yoksa erişimi reddet
+		c.JSON(http.StatusForbidden, gin.H{"error": "Bu işlem için yetkiniz bulunmamaktadır"})
+		c.Abort()
 	}
 }
