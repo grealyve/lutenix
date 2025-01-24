@@ -67,9 +67,9 @@ func (ac *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("token", token, 86400, "/", "", false, true)
+	c.SetCookie("Authorization", token, 86400, "/", "", false, true)
 	c.JSON(200, gin.H{
-		"token": token,
+		"Authorization": token,
 	})
 }
 

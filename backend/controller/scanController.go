@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/grealyve/lutenix/database"
+	"github.com/grealyve/lutenix/logger"
 	"github.com/grealyve/lutenix/models"
 	"github.com/grealyve/lutenix/services"
 )
@@ -27,7 +28,7 @@ func (sc *ScanController) StartScan(c *gin.Context) {
 	userID := c.MustGet("userID").(uuid.UUID)
 
 	var request struct {
-		Scanner   string `json:"scanner" binding:"required"`
+		Scanner   string `json:"scanner" binding:"required,oneof=acunetix zap"`
 		TargetURL string `json:"target_url" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -41,6 +42,7 @@ func (sc *ScanController) StartScan(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Kullanıcı bilgileri alınamadı"})
 		return
 	}
+	logger.Log.Debug("User company ID: ", user.CompanyID, " User ID: ", user.ID)
 
 	// Yeni tarama kaydı oluştur
 	scan := models.Scan{
@@ -68,8 +70,6 @@ func (sc *ScanController) StartScan(c *gin.Context) {
 	switch request.Scanner {
 	case "acunetix":
 		err = sc.ScannerService.RunAcunetixScan(request.TargetURL, apiKey)
-	case "semgrep":
-		err = sc.ScannerService.RunSemgrepScan(request.TargetURL, apiKey)
 	case "zap":
 		err = sc.ScannerService.RunZapScan(request.TargetURL, apiKey)
 	default:

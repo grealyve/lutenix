@@ -18,7 +18,7 @@ var (
 	client = &http.Client{Transport: tr}
 )
 
-func SendPOSTRequestAcunetix(requestMethod string, endpoint string, body []byte) (*http.Response, error) {
+func SendCustomRequestAcunetix(requestMethod string, endpoint string, body []byte) (*http.Response, error) {
 	req, err := http.NewRequest(requestMethod, ConfigInstance.ACUNETIX_IP+":"+strconv.Itoa(ConfigInstance.ACUNETIX_PORT)+endpoint, bytes.NewBuffer(body))
 	if err != nil {
 		logger.Log.Errorln("Request creation error:", err)

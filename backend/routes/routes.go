@@ -6,14 +6,16 @@ import (
 	"github.com/grealyve/lutenix/middlewares"
 )
 
-var(
-	scanController = controller.NewScanController()
-	userController = controller.NewUserController()
+var (
+	scanController  = controller.NewScanController()
+	userController  = controller.NewUserController()
+	assetController = controller.NewAssetController()
 )
 
 func AcunetixRoute(acunetixRoutes *gin.Engine) {
 	v1 := acunetixRoutes.Group("/api/v1")
 	v1.POST("/acunetix/", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
+	v1.GET("/acunetix/getAssets", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), assetController.GetAssets)
 }
 
 func AdminRoutes(adminRoutes *gin.Engine) {
