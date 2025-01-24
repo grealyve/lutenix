@@ -41,7 +41,6 @@ func (ac *AuthController) Login(c *gin.Context) {
 	var user models.User
 	database.DB.First(&user, "email = ?", body.Email)
 
-	// TODO: Burası kesin yanlıştır 0'a eşit olmalıydı...
 	if user.ID == [16]byte{} || user.ID == uuid.Nil {
 		logger.Log.Errorln("User not found")
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -67,35 +66,26 @@ func (ac *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("Authorization", token, 86400, "/", "", false, true)
-	c.JSON(200, gin.H{
-		"Authorization": token,
+	// Token'ı JSON yanıtında dön
+	c.JSON(http.StatusOK, gin.H{
+		"token": token,
 	})
 }
 
 func (ac *AuthController) Logout(c *gin.Context) {
-	token, err := c.Cookie("token")
-	if err != nil {
-		logger.Log.Println("Token not found")
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" {
+		logger.Log.Println("Authorization header not found")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": "Token not found",
+			"message": "Authorization header not found",
 		})
 		return
 	}
 
-	// Add token to Redis blacklist with expiration
-	err = database.RedisClient.Set(context.Background(), "blacklist:"+token, true, 24*time.Hour).Err()
-	if err != nil {
-		logger.Log.Printf("Error adding token to blacklist: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"message": "Error logging out",
-		})
-		return
-	}
+	token := authHeader[7:]
 
-	// Clear cookie
-	c.SetCookie("token", "", -1, "/", "", false, true)
-	err = database.AddTokenToBlacklist(token)
+	// Token'ı Redis blacklist'e ekle
+	err := database.RedisClient.Set(context.Background(), "blacklist:"+token, true, 24*time.Hour).Err()
 	if err != nil {
 		logger.Log.Printf("Error adding token to blacklist: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{

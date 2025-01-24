@@ -75,3 +75,53 @@ func (us *UserService) GetOrCreateCompany(companyName string) (uuid.UUID, error)
 	// Başka bir hata oluştuysa
 	return uuid.Nil, err
 }
+
+func (us *UserService) UpdateUser(userID uuid.UUID, name, surname, email string) error {
+	updates := map[string]interface{}{}
+
+	if name != "" {
+		updates["name"] = name
+	}
+	if surname != "" {
+		updates["surname"] = surname
+	}
+	if email != "" {
+		updates["email"] = email
+	}
+
+	return database.DB.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error
+}
+
+func (us *UserService) UpdateScannerSetting(setting models.ScannerSetting) error {
+	// Önce mevcut ayarı kontrol et
+	var existingSetting models.ScannerSetting
+	result := database.DB.Where("company_id = ? AND scanner = ?", setting.CompanyID, setting.Scanner).First(&existingSetting)
+
+	if result.Error == nil {
+		// Mevcut ayar varsa güncelle
+		return database.DB.Model(&existingSetting).Updates(map[string]interface{}{
+			"api_key":      setting.APIKey,
+			"scanner_url":  setting.ScannerURL,
+			"scanner_port": setting.ScannerPort,
+		}).Error
+	} else if result.Error == gorm.ErrRecordNotFound {
+		// Mevcut ayar yoksa yeni kayıt oluştur
+		return database.DB.Create(&setting).Error
+	}
+
+	return result.Error
+}
+
+func (us *UserService) GetScannerSetting(userID uuid.UUID) (*models.ScannerSetting, error) {
+	var user models.User
+	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
+		return nil, err
+	}
+
+	var scannerSetting models.ScannerSetting
+	if err := database.DB.Where("company_id = ?", user.CompanyID).First(&scannerSetting).Error; err != nil {
+		return nil, err
+	}
+
+	return &scannerSetting, nil
+}

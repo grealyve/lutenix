@@ -32,7 +32,10 @@ func SemgrepRoutes(semgrepRoutes *gin.Engine) {
 func UserRoutes(userRoutes *gin.Engine, authController *controller.AuthController) {
 	v1 := userRoutes.Group("/api/v1")
 	v1.POST("/users/login", authController.Login)
+	v1.GET("/users/logout", middlewares.Authentication(), authController.Logout)
 	v1.GET("/profile", middlewares.Authentication(), userController.GetMyProfile)
+	v1.POST("/users/updateProfile", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), userController.UpdateProfile)
+	v1.POST("/users/updateScanner", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), userController.UpdateScannerSetting)
 
 }
 
