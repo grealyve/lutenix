@@ -34,7 +34,7 @@ var (
 type AssetService struct{}
 
 // Fetches Target data from the Acunetix server.
-func (a *AssetService) GetAllTargetsAcunetix() (map[string]string, error) {
+func (a *AssetService) GetAllAcunetixTargets() (map[string]string, error) {
 	assetUrlTargetIdMap := make(map[string]string)
 	// Define initial cursor as empty string
 	cursor := ""
@@ -78,9 +78,9 @@ func (a *AssetService) GetAllTargetsAcunetix() (map[string]string, error) {
 				Scanner:   "Acunetix",
 			}
 
-			// Veritabanına kaydet
+			// TODO: Save or Update the data
 			if err := DB.Create(&scanModel).Error; err != nil {
-				logger.Log.Errorln("Veritabanına hedef kaydetme hatası:", err)
+				logger.Log.Errorln("Saving the data error:", err)
 				return nil, err
 			}
 		}
@@ -98,7 +98,7 @@ func (a *AssetService) GetAllTargetsAcunetix() (map[string]string, error) {
 	return assetUrlTargetIdMap, nil
 }
 
-func AddAcunetixTarget(targetURL string) {
+func (a *AssetService) AddAcunetixTarget(targetURL string) {
 	target := models.Target{
 		Address:     targetURL,
 		Description: "",
@@ -130,7 +130,7 @@ func AddAcunetixTarget(targetURL string) {
 // GET https://127.0.0.1:3443/api/v1/scans
 // Bütün taranmış bilgileri çekmek için. Taranmamışların bilgisi gelmiyor.
 */
-func GetAllAcunetixScan() {
+func (a *AssetService) GetAllAcunetixScan() {
 	cursor := ""
 
 	for {
@@ -172,6 +172,8 @@ func GetAllAcunetixScan() {
 			}
 			scansJsonMap[scan.TargetID] = scanJson
 			targetIdScanIdMap[scan.TargetID] = scan.ScanID
+
+			// TODO: Save or update the data on database
 		}
 
 		// Check if there are more pages
@@ -188,7 +190,7 @@ func GetAllAcunetixScan() {
 }
 
 // Scan başlatma fonksiyonu
-func TriggerAcunetixScan(targetID string) {
+func (a *AssetService) TriggerAcunetixScan(targetID string) {
 	triggerModel.TargetID = targetID
 
 	triggerJSON, err := json.Marshal(triggerModel)
@@ -220,12 +222,72 @@ func TriggerAcunetixScan(targetID string) {
 }
 
 // Hedefin daha önce taranıp taranmadığını kontrol eder.
-func IsScannedTargetAcunetix(targetID string) bool {
-	for scansJSONMapTargetID, scanInfo := range scansJsonMap {
-		if scansJSONMapTargetID == targetID && (scanInfo.Status == "completed" || scanInfo.Status == "aborted" || scanInfo.Status == "failed" || scanInfo.Status == "processing") {
-			return true
+func (a *AssetService) IsScannedTargetAcunetix(targetID string) bool {
+	var scan models.Scan
+	err := DB.Where("target_id = ? AND scanner = ? AND status IN (?)",
+		targetID,
+		"acunetix",
+		[]string{models.ScanStatusCompleted, models.ScanStatusProcessing}).
+		First(&scan).Error
+	return err == nil
+}
+
+func (a *AssetService) DeleteAcunetixTargets(targetIDList []string) {
+
+	targetJSON, err := json.Marshal(models.DeleteTargets{TargetIDList: targetIDList})
+	if err != nil {
+		logger.Log.Errorln("JSON encoding error:", err)
+	}
+
+	resp, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/targets/delete", targetJSON)
+	if err != nil {
+		logger.Log.Errorln("Request error:", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Log.Errorf("Error reading response body: %v", err)
+	}
+
+	if resp.StatusCode == 204 {
+		logger.Log.Infoln("Targets deleted successfully\n")
+	} else {
+		logger.Log.Errorln("Response Body:", string(body))
+	}
+
+}
+
+func (as *AssetService) GetAllTargetsAcunetix() (map[string]string, error) {
+	notScannedTargets := make(map[string]string)
+	assetUrlTargetIdMap := make(map[string]string)
+
+	// Veritabanından tamamlanmış veya devam eden taramaları al
+	var scans []models.Scan
+	if err := DB.Where(
+		"scanner = ? AND status IN (?)",
+		"acunetix",
+		[]string{
+			models.ScanStatusCompleted,
+			models.ScanStatusProcessing,
+			models.ScanStatusPending,
+		},
+	).Find(&scans).Error; err != nil {
+		return nil, fmt.Errorf("Data couldn't fetch from database: %v", err)
+	}
+
+	// Taranmış hedefleri belirle
+	scannedTargets := make(map[string]bool)
+	for _, scan := range scans {
+		scannedTargets[scan.TargetURL] = true
+	}
+
+	// Taranmamış hedefleri belirle
+	for url, targetID := range assetUrlTargetIdMap {
+		if !scannedTargets[url] {
+			notScannedTargets[url] = targetID
 		}
 	}
 
-	return false
+	return notScannedTargets, nil
 }

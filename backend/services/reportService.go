@@ -2,7 +2,6 @@ package services
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"time"
 
@@ -18,6 +17,12 @@ var (
 
 const template_id = "11111111-1111-1111-1111-111111111111"
 
+type ReportService struct{}
+
+func (r *ReportService) NewReportService() *ReportService {
+	return &ReportService{}
+}
+
 func GetAcunetixReports() {
 	resp, err := utils.SendGETRequestAcunetix("/api/v1/reports?l=100")
 	if err != nil {
@@ -26,17 +31,17 @@ func GetAcunetixReports() {
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		fmt.Println(string(body))
-		fmt.Println("Response Status:", resp.Status)
+		logger.Log.Errorln(string(body))
+		logger.Log.Errorln("Response Status:", resp.Status)
 	}
 
 	json.Unmarshal(body, &reportsResponseModel)
 
 }
 
-func IsAcunetixReportCreationCompleted(groupName string) bool {
+func (r *ReportService) IsAcunetixReportCreationCompleted(groupName string) bool {
 	if groupNameReportIdMap[groupName].Status == "queued" || groupNameReportIdMap[groupName].Status == "processing" {
 		time.Sleep(3 * time.Minute)
 	}
@@ -45,13 +50,12 @@ func IsAcunetixReportCreationCompleted(groupName string) bool {
 }
 
 // Create a report for a list of scans
-func CreateAcunetixReport(targetSlice []string) {
-	// Check if the report is already created for the group
+func (r *ReportService) CreateAcunetixReport(targetSlice []string) {
+	assetService := &AssetService{}
 
 	var scannedIDs []string
-
 	for _, targetID := range targetSlice {
-		if IsScannedTargetAcunetix(targetID) {
+		if assetService.IsScannedTargetAcunetix(targetID) {
 			scannedIDs = append(scannedIDs, targetIdScanIdMap[targetID])
 		}
 	}

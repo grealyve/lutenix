@@ -31,32 +31,32 @@ func (uc *UserController) RegisterUser(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
 		return
 	}
 
 	// Şifre hashleme
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Şifre işlenirken hata oluştu"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Password hashing failed: " + err.Error()})
 		return
 	}
 
 	// Email kontrolü
 	exists, err := uc.UserService.EmailExists(body.Email)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Email kontrolü yapılamadı"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Email check failed: " + err.Error()})
 		return
 	}
 	if exists {
-		c.JSON(http.StatusConflict, gin.H{"error": "Bu email adresi zaten kullanımda"})
+		c.JSON(http.StatusConflict, gin.H{"error": "This email already in use"})
 		return
 	}
 
 	// Şirket kontrolü ve/veya oluşturma
 	companyID, err := uc.UserService.GetOrCreateCompany(body.CompanyName)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Şirket işlemi başarısız: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Company creation failed: " + err.Error()})
 		return
 	}
 
@@ -71,12 +71,12 @@ func (uc *UserController) RegisterUser(c *gin.Context) {
 
 	err = uc.UserService.RegisterUser(user)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Kullanıcı kaydedilemedi: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User couldn't be saved: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Kullanıcı başarıyla kaydedildi",
+		"message": "User created successfully",
 		"user": gin.H{
 			"id":           user.ID,
 			"name":         user.Name,
@@ -92,13 +92,13 @@ func (uc *UserController) RegisterUser(c *gin.Context) {
 func (uc *UserController) GetUserProfile(c *gin.Context) {
 	requestedUserID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz kullanıcı ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
 	user, err := uc.UserService.GetUserByID(requestedUserID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Kullanıcı bulunamadı"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User couldn't find"})
 		return
 	}
 
@@ -115,20 +115,20 @@ func (uc *UserController) GetUserProfile(c *gin.Context) {
 func (uc *UserController) GetMyProfile(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Kullanıcı bilgisi bulunamadı"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User ID couldn't find in context"})
 		return
 	}
 
 	// userID'yi UUID olarak kullan
 	userIDUUID, ok := userID.(uuid.UUID)
 	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Kullanıcı ID'si UUID formatında değil"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "UUID conversion failed"})
 		return
 	}
 
 	user, err := uc.UserService.GetUserByID(userIDUUID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Kullanıcı bulunamadı"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "User couldn't find"})
 		return
 	}
 
@@ -145,29 +145,29 @@ func (uc *UserController) UpdateProfile(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
 		return
 	}
 
 	if body.Email != "" {
 		exists, err := uc.UserService.EmailExists(body.Email)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Email kontrolü yapılamadı"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Email check couldn't complete"})
 			return
 		}
 		if exists {
-			c.JSON(http.StatusConflict, gin.H{"error": "Bu email adresi zaten kullanımda"})
+			c.JSON(http.StatusConflict, gin.H{"error": "This email address is already in use"})
 			return
 		}
 	}
 
 	// Kullanıcıyı güncelle
 	if err := uc.UserService.UpdateUser(userID, body.Name, body.Surname, body.Email); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Profil güncellenemedi"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Profile couldn't update"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Profil başarıyla güncellendi"})
+	c.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
 }
 
 func (uc *UserController) UpdateScannerSetting(c *gin.Context) {
@@ -181,7 +181,7 @@ func (uc *UserController) UpdateScannerSetting(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&body); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
 		return
 	}
 

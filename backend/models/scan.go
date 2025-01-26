@@ -6,6 +6,14 @@ import (
 	"github.com/google/uuid"
 )
 
+// Scan status constants
+const (
+	ScanStatusPending    = "pending"
+	ScanStatusProcessing = "processing"
+	ScanStatusCompleted  = "completed"
+	ScanStatusFailed     = "failed"
+)
+
 type Scan struct {
 	ID                 uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	CompanyID          uuid.UUID `gorm:"type:uuid;not null" json:"company_id"`
