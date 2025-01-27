@@ -2,6 +2,7 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"time"
 
@@ -23,8 +24,8 @@ func (r *ReportService) NewReportService() *ReportService {
 	return &ReportService{}
 }
 
-func GetAcunetixReports() {
-	resp, err := utils.SendGETRequestAcunetix("/api/v1/reports?l=100")
+func (r *ReportService) GetAcunetixReports() {
+	resp, err := utils.SendGETRequestAcunetix("/api/v1/reports?l=99")
 	if err != nil {
 		logger.Log.Errorln("Request error:", err)
 		return
@@ -93,4 +94,17 @@ func (r *ReportService) CreateAcunetixReport(targetSlice []string) {
 		logger.Log.Errorln("Response Body:", string(body))
 		return
 	}
+}
+
+func (r *ReportService) GetReportDownloadLinkAcunetix(groupName string) (string, error) {
+	if !r.IsAcunetixReportCreationCompleted(groupName) {
+		return "", fmt.Errorf("report is not ready yet")
+	}
+
+	// Get download links
+	if len(groupNameReportIdMap[groupName].Download) > 0 {
+		return groupNameReportIdMap[groupName].Download[0], nil
+	}
+
+	return "", fmt.Errorf("download links couldn't find")
 }

@@ -251,7 +251,7 @@ func (a *AssetService) DeleteAcunetixTargets(targetIDList []string) {
 	}
 
 	if resp.StatusCode == 204 {
-		logger.Log.Infoln("Targets deleted successfully\n")
+		logger.Log.Infoln("Targets deleted successfully")
 	} else {
 		logger.Log.Errorln("Response Body:", string(body))
 	}
@@ -273,7 +273,7 @@ func (as *AssetService) GetAllTargetsAcunetix() (map[string]string, error) {
 			models.ScanStatusPending,
 		},
 	).Find(&scans).Error; err != nil {
-		return nil, fmt.Errorf("Data couldn't fetch from database: %v", err)
+		return nil, fmt.Errorf("data couldn't fetch from database: %v", err)
 	}
 
 	// Taranmış hedefleri belirle
