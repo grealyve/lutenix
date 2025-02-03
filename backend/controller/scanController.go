@@ -24,7 +24,6 @@ func NewScanController() *ScanController {
 }
 
 func (sc *ScanController) StartScan(c *gin.Context) {
-	// Kullanıcı bilgilerini al
 	userID := c.MustGet("userID").(uuid.UUID)
 
 	var request struct {
@@ -36,7 +35,6 @@ func (sc *ScanController) StartScan(c *gin.Context) {
 		return
 	}
 
-	// Kullanıcının şirket bilgisini al
 	user, err := sc.UserService.GetUserByID(userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User couldn't find"})
@@ -44,7 +42,6 @@ func (sc *ScanController) StartScan(c *gin.Context) {
 	}
 	logger.Log.Debug("User company ID: ", user.CompanyID, " User ID: ", user.ID)
 
-	// Yeni tarama kaydı oluştur
 	scan := models.Scan{
 		CompanyID: user.CompanyID,
 		CreatedBy: userID,
@@ -53,20 +50,18 @@ func (sc *ScanController) StartScan(c *gin.Context) {
 		Status:    "pending",
 	}
 
-	// Taramayı başlat
 	apiKey, err := sc.UserService.GetUserAPIKey(userID, request.Scanner)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "API Key couldn't find"})
 		return
 	}
 
-	// Taramayı veritabanına kaydet ve başlat
+	// Save the scan to database
 	if err := database.DB.Create(&scan).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Scanner couldn't start"})
 		return
 	}
 
-	// Scanner'a göre taramayı başlat
 	switch request.Scanner {
 	case "acunetix":
 		err = sc.ScannerService.RunAcunetixScan(request.TargetURL, apiKey)

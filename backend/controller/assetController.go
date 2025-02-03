@@ -4,6 +4,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"github.com/grealyve/lutenix/database"
+	"github.com/grealyve/lutenix/models"
 	"github.com/grealyve/lutenix/services"
 )
 
@@ -20,7 +23,7 @@ func NewAssetController() *AssetController {
 }
 
 func (ac *AssetController) GetAssets(c *gin.Context) {
-	// userID := c.MustGet("userID").(uuid.UUID)
+	userID := c.MustGet("userID").(uuid.UUID)
 
 	var request struct {
 		Scanner string `json:"scanner" binding:"required,oneof=acunetix semgrep zap"`
@@ -30,26 +33,74 @@ func (ac *AssetController) GetAssets(c *gin.Context) {
 		return
 	}
 
-	// apiKey, err := ac.UserService.GetUserAPIKey(userID, request.Scanner)
-	// if err != nil {
-	// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "API anahtarı alınamadı"})
-	// 	return
-	// }
+	user, err := ac.UserService.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User couldn't find"})
+		return
+	}
 
 	switch request.Scanner {
 	case "acunetix":
 		assets, err := ac.AssetService.GetAllTargetsAcunetix()
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Acunetix scan failed"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Acunetix targets couldn't fetch"})
+			return
 		}
-		c.JSON(http.StatusOK, gin.H{"Assets": assets})
-	case "semgrep":
 
-	case "zap":
+		// Fetches data from database
+		var scans []models.Scan
+		if err := database.DB.Where("company_id = ? AND scanner = ?", user.CompanyID, "acunetix").Find(&scans).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Scan data couldn't get"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"assets": assets,
+			"scans":  scans,
+		})
+
+	case "semgrep", "zap":
+		c.JSON(http.StatusNotImplemented, gin.H{"error": "Unsupported scanner"})
+		return
+
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scanner"})
+		return
+	}
+}
+
+func (ac *AssetController) DeleteAssets(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+
+	var request struct {
+		Scanner   string   `json:"scanner" binding:"required,oneof=acunetix zap"`
+		TargetIDs []string `json:"target_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	user, err := ac.UserService.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User couldn't find"})
+		return
+	}
+
+	switch request.Scanner {
+	case "acunetix":
+		ac.AssetService.DeleteAcunetixTargets(request.TargetIDs)
+
+		if err := database.DB.Where("company_id = ? AND scanner = ? AND target_url IN (?)",
+			user.CompanyID, "acunetix", request.TargetIDs).
+			Delete(&models.Scan{}).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Assets couldn't be deleted"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Assets successfully deleted"})
 
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scanner"})
 	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Scan started successfully"})
 }

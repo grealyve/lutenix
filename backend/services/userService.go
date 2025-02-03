@@ -52,27 +52,23 @@ func (us *UserService) RegisterUser(user models.User) error {
 func (us *UserService) GetOrCreateCompany(companyName string) (uuid.UUID, error) {
 	var company models.Company
 
-	// Önce şirket adına göre arama yap
 	err := database.DB.Where("name = ?", companyName).First(&company).Error
 	if err == nil {
-		// Şirket bulundu, ID'sini döndür
 		return company.ID, nil
 	}
 
-	// Şirket bulunamadıysa yeni şirket oluştur
 	if err == gorm.ErrRecordNotFound {
 		newCompany := models.Company{
 			Name: companyName,
 		}
 
 		if err := database.DB.Create(&newCompany).Error; err != nil {
-			return uuid.Nil, fmt.Errorf("şirket oluşturulamadı: %v", err)
+			return uuid.Nil, fmt.Errorf("company couldn't create: %v", err)
 		}
 
 		return newCompany.ID, nil
 	}
 
-	// Başka bir hata oluştuysa
 	return uuid.Nil, err
 }
 
@@ -93,19 +89,16 @@ func (us *UserService) UpdateUser(userID uuid.UUID, name, surname, email string)
 }
 
 func (us *UserService) UpdateScannerSetting(setting models.ScannerSetting) error {
-	// Önce mevcut ayarı kontrol et
 	var existingSetting models.ScannerSetting
 	result := database.DB.Where("company_id = ? AND scanner = ?", setting.CompanyID, setting.Scanner).First(&existingSetting)
 
 	if result.Error == nil {
-		// Mevcut ayar varsa güncelle
 		return database.DB.Model(&existingSetting).Updates(map[string]interface{}{
 			"api_key":      setting.APIKey,
 			"scanner_url":  setting.ScannerURL,
 			"scanner_port": setting.ScannerPort,
 		}).Error
 	} else if result.Error == gorm.ErrRecordNotFound {
-		// Mevcut ayar yoksa yeni kayıt oluştur
 		return database.DB.Create(&setting).Error
 	}
 

@@ -35,14 +35,12 @@ func (uc *UserController) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	// Şifre hashleme
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Password hashing failed: " + err.Error()})
 		return
 	}
 
-	// Email kontrolü
 	exists, err := uc.UserService.EmailExists(body.Email)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Email check failed: " + err.Error()})
@@ -53,7 +51,6 @@ func (uc *UserController) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	// Şirket kontrolü ve/veya oluşturma
 	companyID, err := uc.UserService.GetOrCreateCompany(body.CompanyName)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Company creation failed: " + err.Error()})
@@ -119,7 +116,6 @@ func (uc *UserController) GetMyProfile(c *gin.Context) {
 		return
 	}
 
-	// userID'yi UUID olarak kullan
 	userIDUUID, ok := userID.(uuid.UUID)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "UUID conversion failed"})
@@ -160,8 +156,7 @@ func (uc *UserController) UpdateProfile(c *gin.Context) {
 			return
 		}
 	}
-
-	// Kullanıcıyı güncelle
+	
 	if err := uc.UserService.UpdateUser(userID, body.Name, body.Surname, body.Email); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Profile couldn't update"})
 		return

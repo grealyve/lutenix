@@ -36,17 +36,14 @@ type AssetService struct{}
 // Fetches Target data from the Acunetix server.
 func (a *AssetService) GetAllAcunetixTargets() (map[string]string, error) {
 	assetUrlTargetIdMap := make(map[string]string)
-	// Define initial cursor as empty string
 	cursor := ""
 
 	for {
-		// Build URL with cursor parameter
 		endpoint := "/api/v1/targets?l=99"
 		if cursor != "" {
 			endpoint += "&c=" + cursor
 		}
 
-		// Send the request
 		resp, err := utils.SendGETRequestAcunetix(endpoint)
 		if err != nil {
 			logger.Log.Errorln("Request error:", err)
@@ -54,14 +51,12 @@ func (a *AssetService) GetAllAcunetixTargets() (map[string]string, error) {
 		}
 		defer resp.Body.Close()
 
-		// Read the response body
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			logger.Log.Errorln("Error reading response body:", err)
 			return nil, err
 		}
 
-		// Parse JSON response
 		var response models.Response
 		err = json.Unmarshal(body, &response)
 		if err != nil {
@@ -69,28 +64,33 @@ func (a *AssetService) GetAllAcunetixTargets() (map[string]string, error) {
 			return nil, err
 		}
 
-		// Append targets to allTargets slice and save to database
 		for _, target := range response.Targets {
 			assetUrlTargetIdMap[target.Address] = target.TargetID
 
 			scanModel := models.Scan{
 				TargetURL: target.Address,
-				Scanner:   "Acunetix",
+				Scanner:   "acunetix",
+				Status:    models.ScanStatusPending,
 			}
 
-			// TODO: Save or Update the data
-			if err := DB.Create(&scanModel).Error; err != nil {
-				logger.Log.Errorln("Saving the data error:", err)
-				return nil, err
+			var existingScan models.Scan
+			result := DB.Where("target_url = ? AND scanner = ?", target.Address, "acunetix").First(&existingScan)
+
+			if result.Error == nil {
+				DB.Model(&existingScan).Updates(map[string]interface{}{
+					"status": scanModel.Status,
+				})
+			} else {
+				if err := DB.Create(&scanModel).Error; err != nil {
+					logger.Log.Errorln("Error saving scan:", err)
+					return nil, err
+				}
 			}
 		}
 
-		// Check if there are more pages
 		if len(response.Pagination.Cursors) > 1 {
-			// Set the cursor for the next page
 			cursor = response.Pagination.Cursors[1]
 		} else {
-			// No more pages, break out of the loop
 			break
 		}
 	}
@@ -130,7 +130,7 @@ func (a *AssetService) AddAcunetixTarget(targetURL string) {
 // GET https://127.0.0.1:3443/api/v1/scans
 // Bütün taranmış bilgileri çekmek için. Taranmamışların bilgisi gelmiyor.
 */
-func (a *AssetService) GetAllAcunetixScan() {
+func (a *AssetService) GetAllAcunetixScan() error {
 	cursor := ""
 
 	for {
@@ -140,53 +140,64 @@ func (a *AssetService) GetAllAcunetixScan() {
 		}
 
 		var allScans models.AllScans
-
-		// Send the request
 		resp, err := utils.SendGETRequestAcunetix(endpoint)
 		if err != nil {
-			fmt.Println(err.Error())
-
+			return err
 		}
 		defer resp.Body.Close()
 
-		// Read the response body
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Println(err.Error())
-
+			return err
 		}
 
-		// Parse JSON response
 		err = json.Unmarshal(body, &allScans)
 		if err != nil {
-			fmt.Println(err.Error())
+			return err
 		}
 
 		for _, scan := range allScans.Scans {
-			scanJson := models.ScanJSONModel{
+			
+			scanModel := models.Scan{
+				TargetURL: scan.Target.Address,
+				Scanner:   "acunetix",
+				Status:    scan.CurrentSession.Status,
+			}
+
+			var existingScan models.Scan
+			result := DB.Where("target_url = ? AND scanner = ?", scan.Target.Address, "acunetix").First(&existingScan)
+
+			if result.Error == nil {
+				
+				DB.Model(&existingScan).Updates(map[string]interface{}{
+					"status": scanModel.Status,
+				})
+			} else {
+				
+				if err := DB.Create(&scanModel).Error; err != nil {
+					return err
+				}
+			}
+
+			
+			scansJsonMap[scan.TargetID] = models.ScanJSONModel{
 				TargetID:  scan.TargetID,
 				Status:    scan.CurrentSession.Status,
 				Address:   scan.Target.Address,
 				ScanID:    scan.ScanID,
 				StartDate: scan.CurrentSession.StartDate,
 			}
-			scansJsonMap[scan.TargetID] = scanJson
 			targetIdScanIdMap[scan.TargetID] = scan.ScanID
-
-			// TODO: Save or update the data on database
 		}
 
-		// Check if there are more pages
 		if len(allScans.Pagination.Cursors) > 1 {
-			// Set the cursor for the next page
 			cursor = allScans.Pagination.Cursors[1]
 		} else {
-			// No more pages, break out of the loop
 			break
 		}
 	}
 
-	logger.Log.Debugln("Scans written to database.")
+	return nil
 }
 
 // Scan başlatma fonksiyonu
@@ -276,13 +287,11 @@ func (as *AssetService) GetAllTargetsAcunetix() (map[string]string, error) {
 		return nil, fmt.Errorf("data couldn't fetch from database: %v", err)
 	}
 
-	// Taranmış hedefleri belirle
 	scannedTargets := make(map[string]bool)
 	for _, scan := range scans {
 		scannedTargets[scan.TargetURL] = true
 	}
 
-	// Taranmamış hedefleri belirle
 	for url, targetID := range assetUrlTargetIdMap {
 		if !scannedTargets[url] {
 			notScannedTargets[url] = targetID

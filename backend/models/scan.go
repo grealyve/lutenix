@@ -17,7 +17,7 @@ const (
 type Scan struct {
 	ID                 uuid.UUID `gorm:"type:uuid;primaryKey;default:uuid_generate_v4()" json:"id"`
 	CompanyID          uuid.UUID `gorm:"type:uuid;not null" json:"company_id"`
-	CreatedBy          uuid.UUID `gorm:"type:uuid;not null" json:"created_by"` // Taramayı başlatan kullanıcı
+	CreatedBy          uuid.UUID `gorm:"type:uuid;not null" json:"created_by"`
 	Scanner            string    `gorm:"type:varchar(50);not null" json:"scanner"`
 	TargetURL          string    `gorm:"type:text;not null" json:"target_url"`
 	Status             string    `gorm:"type:varchar(50);not null" json:"status"`
