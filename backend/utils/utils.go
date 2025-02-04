@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"crypto/tls"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -47,6 +48,26 @@ func SendGETRequestAcunetix(endpoint string) (*http.Response, error) {
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Auth", ConfigInstance.ACUNETIX_API_KEY)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Errorln("Request error:", err)
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func SendGETRequestZap(endpoint string, apiKey string, scannerURL string, scannerPort int) (*http.Response, error) {
+	url := fmt.Sprintf("http://%s:%d%s", scannerURL, scannerPort, endpoint)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		logger.Log.Errorln("Request creation error:", err)
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {

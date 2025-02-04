@@ -109,3 +109,13 @@ func (r *ReportService) GetReportDownloadLinkAcunetix(groupName string) (string,
 
 	return "", fmt.Errorf("download links couldn't find")
 }
+
+/*
+Report Generate ZAP
+http://localhost:8081/JSON/reports/action/generate/?apikey=6f1ebonoa9980csb8ls2895rl0&title=test&template=modern&theme=&description=&contexts=&sites=http%3A%2F%2Fabdiibrahim.com&sections=&includedConfidences=&includedRisks=&reportFileName=&reportFileNamePattern=&reportDir=&display=
+
+Result:
+{
+  "generate": "C:\\Users\\Grealyve\\2025-02-03-ZAP-Report-abdiibrahim.com.html"
+}
+*/

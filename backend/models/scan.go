@@ -22,6 +22,8 @@ type Scan struct {
 	TargetURL          string    `gorm:"type:text;not null" json:"target_url"`
 	Status             string    `gorm:"type:varchar(50);not null" json:"status"`
 	VulnerabilityCount int       `gorm:"default:0" json:"vulnerability_count"`
+	ZapSpiderScanID    string    `gorm:"type:varchar(50)" json:"zap_spider_scan_id"`
+	ZapVulnScanID      string    `gorm:"type:varchar(50)" json:"zap_vuln_scan_id"`
 	CreatedAt          time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt          time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 	Company            Company   `gorm:"foreignKey:CompanyID" json:"-"`
