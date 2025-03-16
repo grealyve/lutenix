@@ -43,7 +43,7 @@ func (rc *ReportController) CreateReport(c *gin.Context) {
 	}
 
 	// Rapor oluştur
-	rc.ReportService.CreateAcunetixReport(request.ScanIDs)
+	rc.ReportService.CreateAcunetixReport(request.ScanIDs, userID)
 
 	// Rapor indirme linkini al
 	downloadLink, err := rc.ReportService.GetReportDownloadLinkAcunetix(user.CompanyID.String())

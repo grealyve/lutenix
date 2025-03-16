@@ -89,7 +89,7 @@ func (ac *AssetController) DeleteAssets(c *gin.Context) {
 
 	switch request.Scanner {
 	case "acunetix":
-		ac.AssetService.DeleteAcunetixTargets(request.TargetIDs)
+		ac.AssetService.DeleteAcunetixTargets(request.TargetIDs, userID)
 
 		if err := database.DB.Where("company_id = ? AND scanner = ? AND target_url IN (?)",
 			user.CompanyID, "acunetix", request.TargetIDs).

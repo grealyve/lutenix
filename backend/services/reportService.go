@@ -6,6 +6,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/grealyve/lutenix/logger"
 	"github.com/grealyve/lutenix/models"
 	"github.com/grealyve/lutenix/utils"
@@ -24,8 +25,8 @@ func (r *ReportService) NewReportService() *ReportService {
 	return &ReportService{}
 }
 
-func (r *ReportService) GetAcunetixReports() {
-	resp, err := utils.SendGETRequestAcunetix("/api/v1/reports?l=99")
+func (r *ReportService) GetAcunetixReports(userID uuid.UUID) {
+	resp, err := utils.SendGETRequestAcunetix("/api/v1/reports?l=99", userID)
 	if err != nil {
 		logger.Log.Errorln("Request error:", err)
 		return
@@ -52,12 +53,12 @@ func (r *ReportService) IsAcunetixReportCreationCompleted(groupName string) bool
 }
 
 // Create a report for a list of scans
-func (r *ReportService) CreateAcunetixReport(targetSlice []string) {
+func (r *ReportService) CreateAcunetixReport(targetSlice []string, userID uuid.UUID) {
 	assetService := &AssetService{}
 
 	var scannedIDs []string
 	for _, targetID := range targetSlice {
-		if assetService.IsScannedTargetAcunetix(targetID) {
+		if assetService.IsScannedTargetAcunetix(targetID, userID) {
 			scannedIDs = append(scannedIDs, targetIdScanIdMap[targetID])
 		}
 	}
@@ -76,7 +77,7 @@ func (r *ReportService) CreateAcunetixReport(targetSlice []string) {
 		return
 	}
 
-	resp, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/reports", reportJSON)
+	resp, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/reports", reportJSON, userID)
 	if err != nil {
 		logger.Log.Errorln("Request error:", err)
 		return

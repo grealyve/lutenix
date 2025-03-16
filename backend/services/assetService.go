@@ -37,7 +37,7 @@ var (
 type AssetService struct{}
 
 // Fetches Target data from the Acunetix server.
-func (a *AssetService) GetAllAcunetixTargets() (map[string]string, error) {
+func (a *AssetService) GetAllAcunetixTargets(userID uuid.UUID) (map[string]string, error) {
 	assetUrlTargetIdMap := make(map[string]string)
 	cursor := ""
 
@@ -47,7 +47,7 @@ func (a *AssetService) GetAllAcunetixTargets() (map[string]string, error) {
 			endpoint += "&c=" + cursor
 		}
 
-		resp, err := utils.SendGETRequestAcunetix(endpoint)
+		resp, err := utils.SendGETRequestAcunetix(endpoint, userID)
 		if err != nil {
 			logger.Log.Errorln("Request error:", err)
 			return nil, err
@@ -101,7 +101,7 @@ func (a *AssetService) GetAllAcunetixTargets() (map[string]string, error) {
 	return assetUrlTargetIdMap, nil
 }
 
-func (a *AssetService) AddAcunetixTarget(targetURL string) {
+func (a *AssetService) AddAcunetixTarget(targetURL string, userID uuid.UUID) {
 	target := models.Target{
 		Address:     targetURL,
 		Description: "",
@@ -115,7 +115,7 @@ func (a *AssetService) AddAcunetixTarget(targetURL string) {
 		return
 	}
 
-	responseAddTarget, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/targets", targetJSON)
+	responseAddTarget, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/targets", targetJSON, userID)
 	if err != nil {
 		logger.Log.Errorln("Request error:", err)
 		return
@@ -133,7 +133,7 @@ func (a *AssetService) AddAcunetixTarget(targetURL string) {
 // GET https://127.0.0.1:3443/api/v1/scans
 // Bütün taranmış bilgileri çekmek için. Taranmamışların bilgisi gelmiyor.
 */
-func (a *AssetService) GetAllAcunetixScan() error {
+func (a *AssetService) GetAllAcunetixScan(userID uuid.UUID) error {
 	cursor := ""
 
 	for {
@@ -143,7 +143,7 @@ func (a *AssetService) GetAllAcunetixScan() error {
 		}
 
 		var allScans models.AllScans
-		resp, err := utils.SendGETRequestAcunetix(endpoint)
+		resp, err := utils.SendGETRequestAcunetix(endpoint, userID)
 		if err != nil {
 			return err
 		}
@@ -203,7 +203,7 @@ func (a *AssetService) GetAllAcunetixScan() error {
 }
 
 // Scan başlatma fonksiyonu
-func (a *AssetService) TriggerAcunetixScan(targetID string) {
+func (a *AssetService) TriggerAcunetixScan(targetID string, userID uuid.UUID) {
 	triggerModel.TargetID = targetID
 
 	triggerJSON, err := json.Marshal(triggerModel)
@@ -213,7 +213,7 @@ func (a *AssetService) TriggerAcunetixScan(targetID string) {
 	}
 
 	// Send the trigger scan request
-	resp, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/scans", triggerJSON)
+	resp, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/scans", triggerJSON, userID)
 	if err != nil {
 		fmt.Println(err.Error())
 
@@ -235,7 +235,7 @@ func (a *AssetService) TriggerAcunetixScan(targetID string) {
 }
 
 // Hedefin daha önce taranıp taranmadığını kontrol eder.
-func (a *AssetService) IsScannedTargetAcunetix(targetID string) bool {
+func (a *AssetService) IsScannedTargetAcunetix(targetID string, userID uuid.UUID) bool {
 	var scan models.Scan
 	err := DB.Where("target_id = ? AND scanner = ? AND status IN (?)",
 		targetID,
@@ -245,14 +245,14 @@ func (a *AssetService) IsScannedTargetAcunetix(targetID string) bool {
 	return err == nil
 }
 
-func (a *AssetService) DeleteAcunetixTargets(targetIDList []string) {
+func (a *AssetService) DeleteAcunetixTargets(targetIDList []string, userID uuid.UUID) {
 
 	targetJSON, err := json.Marshal(models.DeleteTargets{TargetIDList: targetIDList})
 	if err != nil {
 		logger.Log.Errorln("JSON encoding error:", err)
 	}
 
-	resp, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/targets/delete", targetJSON)
+	resp, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/targets/delete", targetJSON, userID)
 	if err != nil {
 		logger.Log.Errorln("Request error:", err)
 	}
@@ -302,6 +302,21 @@ func (as *AssetService) GetAllTargetsAcunetix() (map[string]string, error) {
 	return notScannedTargets, nil
 }
 
+// Yardımcı fonksiyon: Kullanıcının ZAP scanner ayarlarını getir
+func (a *AssetService) getUserScannerZAPSettings(userID uuid.UUID) (*models.ScannerSetting, error) {
+	var user models.User
+	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
+		return nil, fmt.Errorf("user couldn't find: %v", err)
+	}
+
+	var scannerSetting models.ScannerSetting
+	if err := database.DB.Where("company_id = ? AND scanner = ?", user.CompanyID, "zap").First(&scannerSetting).Error; err != nil {
+		return nil, fmt.Errorf("scanner settings couldn't find: %v", err)
+	}
+
+	return &scannerSetting, nil
+}
+
 /*
 Add the URL to ZAP spider and start the scan.
 http://localhost:8081/JSON/spider/action/scan/?apikey=6f1ebonoa9980csb8ls2895rl0&url=https%3A%2F%2Fwww.abdiibrahim.com&maxChildren=&recurse=1&contextName=&subtreeOnly=
@@ -310,7 +325,7 @@ Result:
 {"scan":"2"}
 */
 func (a *AssetService) AddZapSpiderURL(url string, userID uuid.UUID) (string, error) {
-	scannerSetting, err := a.getUserScannerSettings(userID)
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return "", fmt.Errorf("scanner settings couldn't fetch: %v", err)
 	}
@@ -348,7 +363,7 @@ Result:
 	}
 */
 func (a *AssetService) AddZapScanURL(url string, userID uuid.UUID) (string, error) {
-	scannerSetting, err := a.getUserScannerSettings(userID)
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return "", fmt.Errorf("scanner settings couldn't fetch: %v", err)
 	}
@@ -386,7 +401,7 @@ Result:
 	}
 */
 func (a *AssetService) GetZapScanStatus(scanID string, userID uuid.UUID) (string, error) {
-	scannerSetting, err := a.getUserScannerSettings(userID)
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return "", fmt.Errorf("scanner settings couldn't fetch: %v", err)
 	}
@@ -434,7 +449,7 @@ Result:
 	}
 */
 func (a *AssetService) GetZapAlerts(scanID string, userID uuid.UUID) ([]string, error) {
-	scannerSetting, err := a.getUserScannerSettings(userID)
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return nil, fmt.Errorf("scanner settings couldn't fetch: %v", err)
 	}
@@ -501,7 +516,7 @@ http://localhost:8081/JSON/alert/view/alert/?apikey=6f1ebonoa9980csb8ls2895rl0&i
 */
 
 func (a *AssetService) GetZapAlertDetail(alertID string, userID uuid.UUID) (models.Finding, error) {
-	scannerSetting, err := a.getUserScannerSettings(userID)
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return models.Finding{}, fmt.Errorf("scanner settings couldn't fetch: %v", err)
 	}
@@ -554,7 +569,7 @@ Result:
 	}
 */
 func (a *AssetService) RemoveZapScan(scanID string, userID uuid.UUID) (string, error) {
-	scannerSetting, err := a.getUserScannerSettings(userID)
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return "", fmt.Errorf("scanner settings couldn't fetch: %v", err)
 	}
@@ -591,7 +606,7 @@ Result:
 	}
 */
 func (a *AssetService) PauseZapScan(scanID string, userID uuid.UUID) (string, error) {
-	scannerSetting, err := a.getUserScannerSettings(userID)
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return "", fmt.Errorf("scanner settings couldn't fetch: %v", err)
 	}
@@ -615,21 +630,6 @@ func (a *AssetService) PauseZapScan(scanID string, userID uuid.UUID) (string, er
 	}
 
 	return result.Result, nil
-}
-
-// Yardımcı fonksiyon: Kullanıcının ZAP scanner ayarlarını getir
-func (a *AssetService) getUserScannerSettings(userID uuid.UUID) (*models.ScannerSetting, error) {
-	var user models.User
-	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
-		return nil, fmt.Errorf("user couldn't find: %v", err)
-	}
-
-	var scannerSetting models.ScannerSetting
-	if err := database.DB.Where("company_id = ? AND scanner = ?", user.CompanyID, "zap").First(&scannerSetting).Error; err != nil {
-		return nil, fmt.Errorf("scanner settings couldn't find: %v", err)
-	}
-
-	return &scannerSetting, nil
 }
 
 // ProcessScanResults processes and stores scan findings
@@ -728,7 +728,7 @@ func (a *AssetService) StartScan(url string, userID uuid.UUID) (*models.Scan, er
 
 // GetZapSpiderStatus gets the status of a ZAP spider scan
 func (a *AssetService) GetZapSpiderStatus(spiderScanID string, userID uuid.UUID) (string, error) {
-	scannerSetting, err := a.getUserScannerSettings(userID)
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return "", fmt.Errorf("scanner settings couldn't fetch: %v", err)
 	}
@@ -779,4 +779,186 @@ func (a *AssetService) CheckScanStatus(scanID uuid.UUID, userID uuid.UUID) (stri
 	}
 
 	return scan.Status, nil
+}
+
+// Lists semgrep deployments
+func (a *AssetService) SemgrepListDeployments(userID uuid.UUID) ([]models.SemgrepDeployment, error) {
+	resp, err := utils.SendGETRequestSemgrep("/api/v1/deployments", userID)
+	if err != nil {
+		return nil, fmt.Errorf("deployments couldn't fetch: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var response struct {
+		Deployments []models.SemgrepDeployment `json:"deployments"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("deployment response couldn't handle: %v", err)
+	}
+
+	return response.Deployments, nil
+}
+
+// Lists semgrep projects
+func (a *AssetService) SemgrepListProjects(deploymentSlug string, userID uuid.UUID) ([]models.SemgrepProject, error) {
+	endpoint := fmt.Sprintf("/api/v1/deployments/%s/projects", deploymentSlug)
+	resp, err := utils.SendGETRequestSemgrep(endpoint, userID)
+	if err != nil {
+		return nil, fmt.Errorf("projeler couldn't fetch: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var response struct {
+		Projects []models.SemgrepProject `json:"projects"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("project response couldn't handle: %v", err)
+	}
+
+	return response.Projects, nil
+}
+
+// Fetches scan details from the Semgrep server
+func (a *AssetService) SemgrepGetScanDetails(deploymentID string, scanID int, userID uuid.UUID) (*models.SemgrepScan, error) {
+	endpoint := fmt.Sprintf("/api/v1/deployments/%s/scan/%d", deploymentID, scanID)
+	resp, err := utils.SendGETRequestSemgrep(endpoint, userID)
+	if err != nil {
+		return nil, fmt.Errorf("scan details couldn't fetch: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var scan models.SemgrepScan
+	if err := json.NewDecoder(resp.Body).Decode(&scan); err != nil {
+		return nil, fmt.Errorf("scan response couldn't handle: %v", err)
+	}
+
+	// Veritabanına kaydet
+	dbScan := models.Scan{
+		Scanner:            "semgrep",
+		Status:             models.ScanStatusCompleted,
+		TargetURL:          scan.Meta.RepoURL,
+		VulnerabilityCount: scan.Stats.Findings,
+	}
+
+	if err := database.DB.Create(&dbScan).Error; err != nil {
+		return nil, fmt.Errorf("semgrep scan couldn't save: %v", err)
+	}
+
+	return &scan, nil
+}
+
+// Lists semgrep scans
+func (a *AssetService) SemgrepListScans(deploymentID string, user_id uuid.UUID) ([]models.SemgrepScan, error) {
+	param := models.SemgrepScanSearchParams{}
+
+	body, err := json.Marshal(param)
+	if err != nil {
+		return nil, fmt.Errorf("scan search parameters couldn't encode: %v", err)
+	}
+
+	resp, err := utils.SendCustomRequestSemgrep("POST", "/api/v1/deployments/"+deploymentID+"/scans/search", body, user_id)
+	if err != nil {
+		return nil, fmt.Errorf("scan search parameters couldn't encode: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var response struct {
+		Scans []models.SemgrepScan `json:"scans"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("scan response couldn't handle: %v", err)
+	}
+
+	return response.Scans, nil
+}
+
+// Lists semgrep findings
+func (a *AssetService) SemgrepListFindings(deploymentSlug string, userID uuid.UUID) ([]models.Finding, error) {
+	endpoint := fmt.Sprintf("/api/v1/deployments/%s/findings", deploymentSlug)
+	resp, err := utils.SendGETRequestSemgrep(endpoint, userID)
+	if err != nil {
+		return nil, fmt.Errorf("findings couldn't fetch: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var response struct {
+		Findings []struct {
+			ID         string `json:"id"`
+			Repository struct {
+				Name string `json:"name"`
+				URL  string `json:"url"`
+			} `json:"repository"`
+			Severity    string `json:"severity"`
+			Status      string `json:"status"`
+			RuleName    string `json:"rule_name"`
+			RuleMessage string `json:"rule_message"`
+			Location    struct {
+				FilePath string `json:"file_path"`
+				Line     int    `json:"line"`
+			} `json:"location"`
+		} `json:"findings"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("finding response couldn't handle: %v", err)
+	}
+
+	var findings []models.Finding
+	for _, f := range response.Findings {
+		finding := models.Finding{
+			URL:               f.Repository.URL,
+			Risk:              f.Severity,
+			VulnerabilityName: f.RuleName,
+			Location:          fmt.Sprintf("%s:%d", f.Location.FilePath, f.Location.Line),
+			Severity:          f.Severity,
+		}
+		findings = append(findings, finding)
+	}
+
+	return findings, nil
+}
+
+// Lists semgrep secrets findings
+func (a *AssetService) SemgrepListSecrets(deploymentID string, userID uuid.UUID) ([]models.Finding, error) {
+	endpoint := fmt.Sprintf("/api/v1/deployments/%s/secrets", deploymentID)
+	resp, err := utils.SendGETRequestSemgrep(endpoint, userID)
+	if err != nil {
+		return nil, fmt.Errorf("secrets couldn't fetch: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var response struct {
+		Findings []struct {
+			ID          string `json:"id"`
+			Type        string `json:"type"`
+			FindingPath string `json:"findingPath"`
+			Repository  struct {
+				Name string `json:"name"`
+				URL  string `json:"url"`
+			} `json:"repository"`
+			Severity   string `json:"severity"`
+			Confidence string `json:"confidence"`
+		} `json:"findings"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("secrets response couldn't handle: %v", err)
+	}
+
+	var findings []models.Finding
+	for _, f := range response.Findings {
+		finding := models.Finding{
+			URL:               f.Repository.URL,
+			Risk:              f.Severity,
+			VulnerabilityName: fmt.Sprintf("Secret: %s", f.Type),
+			Location:          f.FindingPath,
+			Severity:          f.Severity,
+		}
+		findings = append(findings, finding)
+	}
+
+	return findings, nil
 }

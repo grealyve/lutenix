@@ -7,8 +7,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/grealyve/lutenix/config"
+	"github.com/grealyve/lutenix/database"
 	"github.com/grealyve/lutenix/logger"
+	"github.com/grealyve/lutenix/models"
 )
 
 var (
@@ -19,8 +22,14 @@ var (
 	client = &http.Client{Transport: tr}
 )
 
-func SendCustomRequestAcunetix(requestMethod string, endpoint string, body []byte) (*http.Response, error) {
-	req, err := http.NewRequest(requestMethod, ConfigInstance.ACUNETIX_IP+":"+strconv.Itoa(ConfigInstance.ACUNETIX_PORT)+endpoint, bytes.NewBuffer(body))
+func SendCustomRequestAcunetix(requestMethod string, endpoint string, body []byte, userID uuid.UUID) (*http.Response, error) {
+	acunetixSetting, err := AcunetixGetUserSettings(userID)
+	if err != nil {
+		logger.Log.Errorln("Acunetix setting couldn't fetch:", err)
+		return nil, err
+	}
+
+	req, err := http.NewRequest(requestMethod, acunetixSetting.ScannerURL+":"+strconv.Itoa(acunetixSetting.ScannerPort)+endpoint, bytes.NewBuffer(body))
 	if err != nil {
 		logger.Log.Errorln("Request creation error:", err)
 		return nil, err
@@ -28,7 +37,7 @@ func SendCustomRequestAcunetix(requestMethod string, endpoint string, body []byt
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Auth", ConfigInstance.ACUNETIX_API_KEY)
+	req.Header.Set("X-Auth", acunetixSetting.APIKey)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -39,15 +48,21 @@ func SendCustomRequestAcunetix(requestMethod string, endpoint string, body []byt
 	return resp, nil
 }
 
-func SendGETRequestAcunetix(endpoint string) (*http.Response, error) {
-	req, err := http.NewRequest("GET", ConfigInstance.ACUNETIX_IP+":"+strconv.Itoa(ConfigInstance.ACUNETIX_PORT)+endpoint, nil)
+func SendGETRequestAcunetix(endpoint string, userID uuid.UUID) (*http.Response, error) {
+	acunetixSetting, err := AcunetixGetUserSettings(userID)
+	if err != nil {
+		logger.Log.Errorln("Acunetix setting couldn't fetch:", err)
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", acunetixSetting.ScannerURL+":"+strconv.Itoa(acunetixSetting.ScannerPort)+endpoint, nil)
 	if err != nil {
 		logger.Log.Errorln("Request creation error:", err)
 		return nil, err
 	}
 
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("X-Auth", ConfigInstance.ACUNETIX_API_KEY)
+	req.Header.Set("X-Auth", acunetixSetting.APIKey)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -58,7 +73,7 @@ func SendGETRequestAcunetix(endpoint string) (*http.Response, error) {
 	return resp, nil
 }
 
-func SendGETRequestZap(endpoint string, apiKey string, scannerURL string, scannerPort int) (*http.Response, error) {
+func SendGETRequestZap(endpoint, apiKey string, scannerURL string, scannerPort int) (*http.Response, error) {
 	url := fmt.Sprintf("http://%s:%d%s", scannerURL, scannerPort, endpoint)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -76,4 +91,97 @@ func SendGETRequestZap(endpoint string, apiKey string, scannerURL string, scanne
 	}
 
 	return resp, nil
+}
+
+func SendGETRequestSemgrep(endpoint string, userID uuid.UUID) (*http.Response, error) {
+	semgrepSetting, err := SemgrepGetUserSettings(userID)
+	if err != nil {
+		logger.Log.Errorln("Semgrep setting couldn't fetch:", err)
+		return nil, err
+	}
+
+	url := fmt.Sprintf(semgrepSetting.ScannerURL +"%v", endpoint)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		logger.Log.Errorln("Request creation error:", err)
+		return nil, err
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ semgrepSetting.APIKey)
+
+	return client.Do(req)
+}
+
+func SendCustomRequestSemgrep(requestMethod string, endpoint string, body []byte, userID uuid.UUID) (*http.Response, error) {
+	semgrepSetting, err := SemgrepGetUserSettings(userID)
+	if err != nil {
+		logger.Log.Errorln("Semgrep setting couldn't fetch:", err)
+		return nil, err
+	}
+
+	url := fmt.Sprintf(semgrepSetting.ScannerURL +"%v", endpoint)
+
+	req, err := http.NewRequest(requestMethod, url, bytes.NewBuffer(body))
+	if err != nil {
+		logger.Log.Errorln("Request creation error:", err)
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+ semgrepSetting.APIKey)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Errorln("Request error:", err)
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// getUserScannerZAPSettings gets the scanner settings for the user
+func GetUserScannerZAPSettings(userID uuid.UUID) (*models.ScannerSetting, error) {
+	var user models.User
+	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
+		return nil, fmt.Errorf("user couldn't find: %v", err)
+	}
+
+	var scannerSetting models.ScannerSetting
+	if err := database.DB.Where("company_id = ? AND scanner = ?", user.CompanyID, "zap").First(&scannerSetting).Error; err != nil {
+		return nil, fmt.Errorf("scanner settings couldn't find: %v", err)
+	}
+
+	return &scannerSetting, nil
+}
+
+
+func SemgrepGetUserSettings(userID uuid.UUID) (*models.ScannerSetting, error) {
+	var user models.User
+	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
+		return nil, fmt.Errorf("user setting couldn't fetch: %v", err)
+	}
+
+	var scannerSetting models.ScannerSetting
+	if err := database.DB.Where("company_id = ? AND scanner = ?", user.CompanyID, "semgrep").First(&scannerSetting).Error; err != nil {
+		return nil, fmt.Errorf("semgrep scanner settings couldn't find: %v", err)
+	}
+
+	return &scannerSetting, nil
+}
+
+func AcunetixGetUserSettings(userID uuid.UUID) (*models.ScannerSetting, error) {
+	var user models.User
+	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
+		return nil, fmt.Errorf("user setting couldn't find: %v", err)
+	}
+
+	var scannerSetting models.ScannerSetting
+	if err := database.DB.Where("company_id = ? AND scanner = ?", user.CompanyID, "acunetix").First(&scannerSetting).Error; err != nil {
+		return nil, fmt.Errorf("semgrep scanner settings couldn't find: %v", err)
+	}
+
+	return &scannerSetting, nil
 }
