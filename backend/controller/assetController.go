@@ -105,12 +105,14 @@ func (ac *AssetController) DeleteAssets(c *gin.Context) {
 	}
 }
 
+// StartZapScan starts a ZAP scan
 func (ac *AssetController) StartZapScan(c *gin.Context) {
 	userID := c.MustGet("userID").(uuid.UUID)
 
 	var request struct {
 		TargetURL string `json:"target_url" binding:"required,url"`
 	}
+
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

@@ -50,12 +50,6 @@ func (sc *ScanController) StartScan(c *gin.Context) {
 		Status:    "pending",
 	}
 
-	apiKey, err := sc.UserService.GetUserAPIKey(userID, request.Scanner)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "API Key couldn't find"})
-		return
-	}
-
 	// Save the scan to database
 	if err := database.DB.Create(&scan).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Scanner couldn't start"})
@@ -64,9 +58,9 @@ func (sc *ScanController) StartScan(c *gin.Context) {
 
 	switch request.Scanner {
 	case "acunetix":
-		err = sc.ScannerService.RunAcunetixScan(request.TargetURL, apiKey)
+		err = sc.ScannerService.RunAcunetixScan(request.TargetURL)
 	case "zap":
-		err = sc.ScannerService.RunZapScan(request.TargetURL, apiKey)
+		err = sc.ScannerService.RunZapScan(request.TargetURL)
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scanner"})
 		return

@@ -19,20 +19,6 @@ func (us *UserService) GetUserByID(userID uuid.UUID) (*models.User, error) {
 	return &user, nil
 }
 
-func (us *UserService) GetUserAPIKey(userID uuid.UUID, scanner string) (string, error) {
-	user, err := us.GetUserByID(userID)
-	if err != nil {
-		return "", err
-	}
-
-	apiKey, err := database.GetAPIKey(scanner, user.CompanyID)
-	if err != nil {
-		return "", err
-	}
-
-	return apiKey, nil
-}
-
 func (us *UserService) EmailExists(email string) (bool, error) {
 	var count int64
 	err := database.DB.Model(&models.User{}).Where("email = ?", email).Count(&count).Error
@@ -73,7 +59,7 @@ func (us *UserService) GetOrCreateCompany(companyName string) (uuid.UUID, error)
 }
 
 func (us *UserService) UpdateUser(userID uuid.UUID, name, surname, email string) error {
-	updates := map[string]interface{}{}
+	updates := map[string]any{}
 
 	if name != "" {
 		updates["name"] = name

@@ -330,7 +330,7 @@ func (a *AssetService) AddZapSpiderURL(url string, userID uuid.UUID) (string, er
 		return "", fmt.Errorf("scanner settings couldn't fetch: %v", err)
 	}
 
-	// URL'i liste olarak al
+	// TOOD: URL'i liste olarak al
 	endpoint := fmt.Sprintf("/JSON/spider/action/scan/?apikey=%s&url=%s&maxChildren=&recurse=1&contextName=&subtreeOnly=",
 		scannerSetting.APIKey,
 		url)

@@ -3,6 +3,8 @@ package middlewares
 import (
 	"net/http"
 
+	"slices"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -36,11 +38,9 @@ func Authorization(resource string, action string) gin.HandlerFunc {
 		if permissions, ok := permissionMap[roleStr]; ok {
 			if resourcePerms, ok := permissions[resource]; ok {
 				// İstenen action'ın izinler arasında olup olmadığını kontrol et
-				for _, perm := range resourcePerms {
-					if perm == action {
-						c.Next()
-						return
-					}
+				if slices.Contains(resourcePerms, action) {
+					c.Next()
+					return
 				}
 			}
 		}

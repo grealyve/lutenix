@@ -39,7 +39,6 @@ func main() {
 	routes.SemgrepRoutes(router)
 	routes.UserRoutes(router, authController)
 	routes.ZapRoutes(router)
-	routes.ScanRoutes(router)
 
 	router.Run("localhost:4040")
 

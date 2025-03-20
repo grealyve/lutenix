@@ -100,7 +100,7 @@ func SendGETRequestSemgrep(endpoint string, userID uuid.UUID) (*http.Response, e
 		return nil, err
 	}
 
-	url := fmt.Sprintf(semgrepSetting.ScannerURL +"%v", endpoint)
+	url := fmt.Sprintf(semgrepSetting.ScannerURL+":"+strconv.Itoa(semgrepSetting.ScannerPort)+"%v", endpoint)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -109,7 +109,7 @@ func SendGETRequestSemgrep(endpoint string, userID uuid.UUID) (*http.Response, e
 	}
 
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+ semgrepSetting.APIKey)
+	req.Header.Set("Authorization", "Bearer "+semgrepSetting.APIKey)
 
 	return client.Do(req)
 }
@@ -121,7 +121,7 @@ func SendCustomRequestSemgrep(requestMethod string, endpoint string, body []byte
 		return nil, err
 	}
 
-	url := fmt.Sprintf(semgrepSetting.ScannerURL +"%v", endpoint)
+	url := fmt.Sprintf(semgrepSetting.ScannerURL+"%v", endpoint)
 
 	req, err := http.NewRequest(requestMethod, url, bytes.NewBuffer(body))
 	if err != nil {
@@ -131,7 +131,7 @@ func SendCustomRequestSemgrep(requestMethod string, endpoint string, body []byte
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Authorization", "Bearer "+ semgrepSetting.APIKey)
+	req.Header.Set("Authorization", "Bearer "+semgrepSetting.APIKey)
 
 	resp, err := client.Do(req)
 	if err != nil {
@@ -156,7 +156,6 @@ func GetUserScannerZAPSettings(userID uuid.UUID) (*models.ScannerSetting, error)
 
 	return &scannerSetting, nil
 }
-
 
 func SemgrepGetUserSettings(userID uuid.UUID) (*models.ScannerSetting, error) {
 	var user models.User
