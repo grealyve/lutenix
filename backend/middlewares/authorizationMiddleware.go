@@ -6,18 +6,21 @@ import (
 	"slices"
 
 	"github.com/gin-gonic/gin"
+	"github.com/grealyve/lutenix/logger"
 )
 
 var permissionMap = map[string]map[string][]string{
 	"admin": {
 		"scan":    {"create", "read", "update", "delete"},
-		"scanner": {"use", "configure"},
-		"user":    {"read", "create", "update", "delete"},
+		"scanner": {"use", "configure", "read", "create", "update", "delete"},
+		"asset":   {"read", "create", "update", "delete"},
+		"user":    {"read", "create", "update", "delete", "logout"},
 	},
 	"user": {
 		"scan":    {"create", "read", "update", "delete"},
+		"asset":   {"read", "create", "update", "delete"},
 		"scanner": {"use", "configure"},
-		"user":    {"read"},
+		"user":    {"read", "update", "logout"},
 	},
 }
 
@@ -27,6 +30,7 @@ func Authorization(resource string, action string) gin.HandlerFunc {
 		role, exists := c.Get("role")
 		if !exists {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Rol bilgisi bulunamadı"})
+			logger.Log.Info("Rol bilgisi bulunamadı")
 			c.Abort()
 			return
 		}
@@ -47,6 +51,7 @@ func Authorization(resource string, action string) gin.HandlerFunc {
 
 		// İzin yoksa erişimi reddet
 		c.JSON(http.StatusForbidden, gin.H{"error": "Bu işlem için yetkiniz bulunmamaktadır"})
+		logger.Log.Errorf("Bu işlem için yetkin yok: %v", roleStr)
 		c.Abort()
 	}
 }

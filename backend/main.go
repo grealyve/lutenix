@@ -24,9 +24,10 @@ func main() {
 		" port=" + config.ConfigInstance.DB_PORT +
 		" sslmode=" + config.ConfigInstance.SSLMode
 	database.ConnectDB(dsn)
-	logger.Log.Println("Database connected successfully")
+	logger.Log.Infoln("Database connected successfully")
 
 	database.ConnectRedis("localhost:6379")
+	logger.Log.Infoln("Redis connection successful")
 
 	router := gin.Default()
 
@@ -34,7 +35,7 @@ func main() {
 	router.Use(middlewares.LoggingMiddleware())
 	router.Use(middlewares.CorsMiddleware())
 
-	routes.AcunetixRoute(router)
+	routes.AcunetixRoutes(router)
 	routes.AdminRoutes(router)
 	routes.SemgrepRoutes(router)
 	routes.UserRoutes(router, authController)

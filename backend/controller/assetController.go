@@ -105,55 +105,6 @@ func (ac *AssetController) DeleteAssets(c *gin.Context) {
 	}
 }
 
-// StartZapScan starts a ZAP scan
-func (ac *AssetController) StartZapScan(c *gin.Context) {
-	userID := c.MustGet("userID").(uuid.UUID)
-
-	var request struct {
-		TargetURL string `json:"target_url" binding:"required,url"`
-	}
-
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Spider taraması başlat
-	spiderScanID, err := ac.AssetService.AddZapSpiderURL(request.TargetURL, userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Spider scan couldn't start"})
-		return
-	}
-
-	// Vulnerability taraması başlat
-	vulnScanID, err := ac.AssetService.AddZapScanURL(request.TargetURL, userID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Vulnerability scan couldn't start"})
-		return
-	}
-
-	// Veritabanına scan kaydı ekle
-	scan := models.Scan{
-		CompanyID: c.MustGet("companyID").(uuid.UUID),
-		CreatedBy: userID,
-		Scanner:   "zap",
-		TargetURL: request.TargetURL,
-		Status:    models.ScanStatusProcessing,
-	}
-
-	if err := database.DB.Create(&scan).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Scan couldn't be saved"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":        "ZAP scan started successfully",
-		"scan_id":        scan.ID,
-		"spider_scan_id": spiderScanID,
-		"vuln_scan_id":   vulnScanID,
-	})
-}
-
 func (ac *AssetController) GetZapScanStatus(c *gin.Context) {
 	userID := c.MustGet("userID").(uuid.UUID)
 

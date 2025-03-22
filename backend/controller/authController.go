@@ -31,7 +31,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 	}
 
 	if c.BindJSON(&body) != nil {
-		logger.Log.Println("Invalid request: body doesn't match struct", body.Email, body.Password)
+		logger.Log.Errorln("Invalid request: body doesn't match struct", body.Email, body.Password)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Invalid request",
 		})
@@ -75,7 +75,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 func (ac *AuthController) Logout(c *gin.Context) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		logger.Log.Println("Authorization header not found")
+		logger.Log.Infoln("Authorization header not found")
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Authorization header not found",
 		})
@@ -87,7 +87,7 @@ func (ac *AuthController) Logout(c *gin.Context) {
 	// Token'ı Redis blacklist'e ekle
 	err := database.RedisClient.Set(context.Background(), "blacklist:"+token, true, 24*time.Hour).Err()
 	if err != nil {
-		logger.Log.Printf("Error adding token to blacklist: %v", err)
+		logger.Log.Errorf("Error adding token to blacklist: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"message": "Error logging out",
 		})

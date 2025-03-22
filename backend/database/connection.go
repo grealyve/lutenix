@@ -21,16 +21,16 @@ func ConnectDB(dsn string) {
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		panic(err)
+		logger.Log.Fatalf("Couldn't connect to database %v", err)
 	}
 
 	db, err := DB.DB()
 	if err != nil {
-		panic(err)
+		logger.Log.Fatalf("Couldn't get the database instance %v", err)
 	}
 
 	if err := db.Ping(); err != nil {
-		panic(err)
+		logger.Log.Fatalf("Database is not live %v", err)
 	}
 
 	DB.Exec("CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\"")
@@ -64,7 +64,7 @@ func ConnectRedis(redisURL string) {
 	})
 
 	if err := RedisClient.Ping(context.Background()).Err(); err != nil {
-		panic(err)
+		logger.Log.Fatalf("Redis is not alive %v", err)
 	}
 }
 

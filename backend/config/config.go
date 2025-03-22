@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 
+	"github.com/grealyve/lutenix/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -27,11 +28,11 @@ func LoadConfig() {
 	ConfigInstance = &Config{}
 	yamlFile, err := os.ReadFile("config.yaml")
 	if err != nil {
-		panic(err)
+		logger.Log.Errorf("Read the config file %v", err)
 	}
 
 	err = yaml.Unmarshal(yamlFile, ConfigInstance)
 	if err != nil {
-		panic(err)
+		logger.Log.Errorf("Couldn't unmarshal the yaml file %v", err)
 	}
 }

@@ -12,43 +12,65 @@ var (
 	assetController = controller.NewAssetController()
 )
 
-func AcunetixRoute(acunetixRoutes *gin.Engine) {
-	v1 := acunetixRoutes.Group("/api/v1/acunetix")
-	v1.POST("/", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
-	v1.GET("/getAssets", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), assetController.GetAssets)
+func AcunetixRoutes(acunetixRoutes *gin.Engine) {
+	acunetix := acunetixRoutes.Group("/api/v1/acunetix")
+	acunetix.Use(middlewares.Authentication(), middlewares.Authorization("scanner", "use"))
+
+	acunetix.GET("/targets", scanController.AcunetixGetAllTargets)
+	acunetix.POST("/targets", scanController.AcunetixAddTarget)
+	acunetix.GET("/scans", scanController.AcunetixGetAllScans)
+	acunetix.POST("/targets/:target_id/scan", scanController.AcunetixTriggerScan) // Trigger a scan
+	acunetix.POST("/targets/delete", scanController.AcunetixDeleteTargets)
+	acunetix.GET("/targets/not_scanned",scanController.AcunetixGetAllTargetsNotScanned)
 }
 
 func AdminRoutes(adminRoutes *gin.Engine) {
 	v1 := adminRoutes.Group("/api/v1/admin")
 	v1.POST("/register", userController.RegisterUser)
-	v1.DELETE("/deleteUser", middlewares.Authentication(), middlewares.Authorization("scanner", "use"),userController.RegisterUser)
+	v1.DELETE("/deleteUser", middlewares.Authentication(), middlewares.Authorization("user", "delete"), userController.RegisterUser)
 
 }
 
 func SemgrepRoutes(semgrepRoutes *gin.Engine) {
 	semgrep := semgrepRoutes.Group("/api/v1/semgrep")
-	semgrep.POST("/listScans", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
-	semgrep.GET("/scanDetails", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
-	semgrep.GET("/deployments", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
-	semgrep.GET("/projects", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
-	semgrep.GET("/findings", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
-	semgrep.GET("/secrets", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), scanController.StartScan)
+	semgrep.Use(middlewares.Authentication(), middlewares.Authorization("scanner", "use"))
+
+	semgrep.POST("/scan", scanController.StartScan)                    // POST for starting scans
+	semgrep.GET("/scanDetails",middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepScanDetails)     // Requires scan_id and deployment_id in request body
+	semgrep.GET("/deployments",middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListDeployments) // No parameters
+	semgrep.GET("/projects", middlewares.Authentication(), middlewares.Authorization("scanner", "read"),scanController.SemgrepListProjects)       // Requires deployment_slug as a query parameter
+	semgrep.GET("/scans", middlewares.Authentication(), middlewares.Authorization("scanner", "read"),scanController.SemgrepListScans)             // Requires deployment_id as a query parameter
+	semgrep.GET("/findings", middlewares.Authentication(), middlewares.Authorization("scanner", "read"),scanController.SemgrepListFindings)       // Requires deployment_slug as a query parameter
+	semgrep.GET("/secrets", middlewares.Authentication(), middlewares.Authorization("scanner", "read"),scanController.SemgrepListSecrets)         // Requires deployment_id as a query parameter
 }
 
 func UserRoutes(userRoutes *gin.Engine, authController *controller.AuthController) {
-	v1 := userRoutes.Group("/api/v1/users")
-	v1.POST("/login", authController.Login)
-	v1.GET("/logout", middlewares.Authentication(), authController.Logout)
-	v1.GET("/profile", middlewares.Authentication(), userController.GetMyProfile)
-	v1.POST("/updateProfile", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), userController.UpdateProfile)
-	v1.POST("/updateScanner", middlewares.Authentication(), middlewares.Authorization("scanner", "use"), userController.UpdateScannerSetting)
+	user := userRoutes.Group("/api/v1/users")
+	user.POST("/login", authController.Login)
+	user.GET("/logout", middlewares.Authentication(), middlewares.Authorization("user", "logout"), authController.Logout)
+	user.GET("/profile", middlewares.Authentication(), middlewares.Authorization("user", "read"), userController.GetMyProfile)
+	user.POST("/updateProfile", middlewares.Authentication(), middlewares.Authorization("user", "update"), userController.UpdateProfile)
+	user.POST("/updateScanner", middlewares.Authentication(), middlewares.Authorization("user", "update"), userController.UpdateScannerSetting)
 
 }
 
 func ZapRoutes(zapRoutes *gin.Engine) {
-	v1 := zapRoutes.Group("/api/v1/zap")
-	v1.GET("/startScan", middlewares.Authentication(), middlewares.Authorization("scanner", "create"), scanController.StartScan)
-	v1.GET("/scanStatus", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), assetController.GetZapScanStatus)
-	v1.GET("/findings", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), assetController.GetZapFindings)
+	zap := zapRoutes.Group("/api/v1/zap")
+	zap.Use(middlewares.Authentication(), middlewares.Authorization("scanner", "use"))
 
+	// Start scan (using dedicated endpoint)
+	zap.POST("/scan", scanController.ZapStartScan)
+
+	// Scan Management
+	zap.GET("/scans/:scan_id/status", scanController.ZapGetScanStatus) // Get scan status
+	zap.GET("/scans/:scan_id/spider_status", scanController.ZapGetZapSpiderStatus)
+	zap.PUT("/scans/:scan_id/pause", scanController.ZapPauseScan)    // Pause scan
+	zap.DELETE("/scans/:scan_id", scanController.ZapRemoveScan)        // Remove scan
+	zap.GET("/scans/:scan_id", scanController.ZapGetZapScanStatus)
+
+	zap.POST("/spider",scanController.ZapAddZapSpiderURL)
+	zap.POST("/scan_vuln",scanController.ZapAddZapScanURL)
+
+	zap.GET("/alerts/:scan_id", scanController.ZapGetAlerts)          // Get alerts for a scan
+	zap.GET("/alerts/detail/:alert_id", scanController.ZapGetAlertDetail) 
 }

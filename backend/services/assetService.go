@@ -111,7 +111,7 @@ func (a *AssetService) AddAcunetixTarget(targetURL string, userID uuid.UUID) {
 
 	targetJSON, err := json.Marshal(target)
 	if err != nil {
-		fmt.Println("JSON encoding error:", err)
+		logger.Log.Errorln("Json encoding error:", err)
 		return
 	}
 
@@ -665,7 +665,7 @@ func (a *AssetService) ProcessScanResults(scan *models.Scan, userID uuid.UUID) e
 	return nil
 }
 
-func (a *AssetService) StartScan(url string, userID uuid.UUID) (*models.Scan, error) {
+func (a *AssetService) StartZAPScan(url string, userID uuid.UUID) (*models.Scan, error) {
 	// Get user info
 	var user models.User
 	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
@@ -753,7 +753,7 @@ func (a *AssetService) GetZapSpiderStatus(spiderScanID string, userID uuid.UUID)
 }
 
 // CheckScanStatus checks the current status of a scan
-func (a *AssetService) CheckScanStatus(scanID uuid.UUID, userID uuid.UUID) (string, error) {
+func (a *AssetService) CheckZAPScanStatus(scanID uuid.UUID, userID uuid.UUID) (string, error) {
 	var scan models.Scan
 	if err := database.DB.First(&scan, "id = ?", scanID).Error; err != nil {
 		return "", fmt.Errorf("scan not found: %v", err)

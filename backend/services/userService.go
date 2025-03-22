@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grealyve/lutenix/database"
+	"github.com/grealyve/lutenix/logger"
 	"github.com/grealyve/lutenix/models"
 	"gorm.io/gorm"
 )
@@ -22,12 +23,19 @@ func (us *UserService) GetUserByID(userID uuid.UUID) (*models.User, error) {
 func (us *UserService) EmailExists(email string) (bool, error) {
 	var count int64
 	err := database.DB.Model(&models.User{}).Where("email = ?", email).Count(&count).Error
+	if err != nil {
+		logger.Log.Errorf("Error during db query")
+	}
+
 	return count > 0, err
 }
 
 func (us *UserService) CompanyExists(companyID uuid.UUID) (bool, error) {
 	var count int64
 	err := database.DB.Model(&models.Company{}).Where("id = ?", companyID).Count(&count).Error
+	if err != nil {
+		logger.Log.Errorf("Error during db query")
+	}
 	return count > 0, err
 }
 
@@ -40,6 +48,7 @@ func (us *UserService) GetOrCreateCompany(companyName string) (uuid.UUID, error)
 
 	err := database.DB.Where("name = ?", companyName).First(&company).Error
 	if err == nil {
+		logger.Log.Errorln("Company not found in db:", err)
 		return company.ID, nil
 	}
 
@@ -49,6 +58,7 @@ func (us *UserService) GetOrCreateCompany(companyName string) (uuid.UUID, error)
 		}
 
 		if err := database.DB.Create(&newCompany).Error; err != nil {
+			logger.Log.Errorf("Company couldn't create")
 			return uuid.Nil, fmt.Errorf("company couldn't create: %v", err)
 		}
 

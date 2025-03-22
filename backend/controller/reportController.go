@@ -31,6 +31,7 @@ func (rc *ReportController) CreateReport(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
+		logger.Log.Errorf("Body couldn't bind: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -38,6 +39,7 @@ func (rc *ReportController) CreateReport(c *gin.Context) {
 	// Kullanıcının şirket bilgisini al
 	user, err := rc.UserService.GetUserByID(userID)
 	if err != nil {
+		logger.Log.Errorf("User couldn't find %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Kullanıcı bulunamadı"})
 		return
 	}
@@ -48,6 +50,7 @@ func (rc *ReportController) CreateReport(c *gin.Context) {
 	// Rapor indirme linkini al
 	downloadLink, err := rc.ReportService.GetReportDownloadLinkAcunetix(user.CompanyID.String())
 	if err != nil {
+		logger.Log.Errorf("Couldn't create a Acunetix report download link: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -61,12 +64,13 @@ func (rc *ReportController) CreateReport(c *gin.Context) {
 	}
 
 	if err := database.DB.Create(&report).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Rapor kaydedilemedi"})
+		logger.Log.Errorf("Report couldn't save %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Report couldn't save"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Rapor başarıyla oluşturuldu",
+		"message": "Report creation successful",
 		"report":  report,
 	})
 }
@@ -77,14 +81,15 @@ func (rc *ReportController) GetReports(c *gin.Context) {
 	// Kullanıcının şirket bilgisini al
 	user, err := rc.UserService.GetUserByID(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Kullanıcı bulunamadı"})
+		logger.Log.Errorf("User couldn't find %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "User couldn't find"})
 		return
 	}
 
 	var reports []models.Report
 	if err := database.DB.Where("company_id = ?", user.CompanyID).Find(&reports).Error; err != nil {
-		logger.Log.Errorln("Raporlar alınamadı:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Raporlar alınamadı"})
+		logger.Log.Errorln("Reports couldn't fecth from database:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Reports couldn't fecth from database"})
 		return
 	}
 
