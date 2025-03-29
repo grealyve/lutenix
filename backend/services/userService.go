@@ -89,11 +89,27 @@ func (us *UserService) UpdateScannerSetting(setting models.ScannerSetting) error
 	result := database.DB.Where("company_id = ? AND scanner = ?", setting.CompanyID, setting.Scanner).First(&existingSetting)
 
 	if result.Error == nil {
-		return database.DB.Model(&existingSetting).Updates(map[string]interface{}{
-			"api_key":      setting.APIKey,
-			"scanner_url":  setting.ScannerURL,
-			"scanner_port": setting.ScannerPort,
-		}).Error
+		updates := make(map[string]interface{})
+
+		// Only include APIKey in the update if it's not empty
+		if setting.APIKey != "" {
+			updates["api_key"] = setting.APIKey
+		}
+
+		if setting.ScannerURL != "" {
+			updates["scanner_url"] = setting.ScannerURL
+		}
+
+		if setting.ScannerPort != 0 {
+			updates["scanner_port"] = setting.ScannerPort
+		}
+
+		if len(updates) == 0 {
+			return nil
+		}
+
+		return database.DB.Model(&existingSetting).Updates(updates).Error
+
 	} else if result.Error == gorm.ErrRecordNotFound {
 		return database.DB.Create(&setting).Error
 	}
