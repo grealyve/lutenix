@@ -21,7 +21,7 @@ func AcunetixRoutes(acunetixRoutes *gin.Engine) {
 	acunetix.GET("/scans", scanController.AcunetixGetAllScans)
 	acunetix.POST("/targets/:target_id/scan", scanController.AcunetixTriggerScan) // Trigger a scan
 	acunetix.POST("/targets/delete", scanController.AcunetixDeleteTargets)
-	acunetix.GET("/targets/not_scanned",scanController.AcunetixGetAllTargetsNotScanned)
+	acunetix.GET("/targets/not_scanned", scanController.AcunetixGetAllTargetsNotScanned)
 }
 
 func AdminRoutes(adminRoutes *gin.Engine) {
@@ -35,13 +35,12 @@ func SemgrepRoutes(semgrepRoutes *gin.Engine) {
 	semgrep := semgrepRoutes.Group("/api/v1/semgrep")
 	semgrep.Use(middlewares.Authentication(), middlewares.Authorization("scanner", "use"))
 
-	semgrep.POST("/scan", scanController.StartScan)                    // POST for starting scans
-	semgrep.GET("/scanDetails",middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepScanDetails)     // Requires scan_id and deployment_id in request body
-	semgrep.GET("/deployments",middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListDeployments) // No parameters
-	semgrep.GET("/projects", middlewares.Authentication(), middlewares.Authorization("scanner", "read"),scanController.SemgrepListProjects)       // Requires deployment_slug as a query parameter
-	semgrep.GET("/scans", middlewares.Authentication(), middlewares.Authorization("scanner", "read"),scanController.SemgrepListScans)             // Requires deployment_id as a query parameter
-	semgrep.GET("/findings", middlewares.Authentication(), middlewares.Authorization("scanner", "read"),scanController.SemgrepListFindings)       // Requires deployment_slug as a query parameter
-	semgrep.GET("/secrets", middlewares.Authentication(), middlewares.Authorization("scanner", "read"),scanController.SemgrepListSecrets)         // Requires deployment_id as a query parameter
+	semgrep.GET("/scanDetails", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepScanDetails)     // Requires scan_id and deployment_id in request body
+	semgrep.GET("/deployments", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListDeployments) // No parameters
+	semgrep.GET("/projects", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListProjects)       // Requires deployment_slug as a query parameter
+	semgrep.GET("/scans", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListScans)             // Requires deployment_id as a query parameter
+	semgrep.GET("/findings", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListFindings)       // Requires deployment_slug as a query parameter
+	semgrep.GET("/secrets", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListSecrets)         // Requires deployment_id as a query parameter
 }
 
 func UserRoutes(userRoutes *gin.Engine, authController *controller.AuthController) {
@@ -58,19 +57,16 @@ func ZapRoutes(zapRoutes *gin.Engine) {
 	zap := zapRoutes.Group("/api/v1/zap")
 	zap.Use(middlewares.Authentication(), middlewares.Authorization("scanner", "use"))
 
-	// Start scan (using dedicated endpoint)
-	zap.POST("/scan", scanController.ZapStartScan)
-
 	// Scan Management
 	zap.GET("/scans/:scan_id/status", scanController.ZapGetScanStatus) // Get scan status
 	zap.GET("/scans/:scan_id/spider_status", scanController.ZapGetZapSpiderStatus)
-	zap.PUT("/scans/:scan_id/pause", scanController.ZapPauseScan)    // Pause scan
-	zap.DELETE("/scans/:scan_id", scanController.ZapRemoveScan)        // Remove scan
+	zap.PUT("/scans/:scan_id/pause", scanController.ZapPauseScan) // Pause scan
+	zap.DELETE("/scans/:scan_id", scanController.ZapRemoveScan)   // Remove scan
 	zap.GET("/scans/:scan_id", scanController.ZapGetZapScanStatus)
 
-	zap.POST("/spider",scanController.ZapAddZapSpiderURL)
-	zap.POST("/scan_vuln",scanController.ZapAddZapScanURL)
+	// Start scan (using dedicated endpoint)
+	zap.POST("/scans", scanController.ZapStartScan)
 
-	zap.GET("/alerts/:scan_id", scanController.ZapGetAlerts)          // Get alerts for a scan
-	zap.GET("/alerts/detail/:alert_id", scanController.ZapGetAlertDetail) 
+	zap.GET("/alerts/:scan_id", scanController.ZapGetAlerts) // Get alerts for a scan
+	zap.GET("/alerts/detail/:alert_id", scanController.ZapGetAlertDetail)
 }

@@ -28,4 +28,5 @@ type Scan struct {
 	UpdatedAt          time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 	Company            Company   `gorm:"foreignKey:CompanyID" json:"-"`
 	Findings           []Finding `gorm:"foreignKey:ScanID" json:"-"`
+	DeploymentSlug     string    `gorm:"type:varchar(50)" json:"deployment_slug"`
 }

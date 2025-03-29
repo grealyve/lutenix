@@ -74,7 +74,7 @@ func SendGETRequestAcunetix(endpoint string, userID uuid.UUID) (*http.Response, 
 }
 
 func SendGETRequestZap(endpoint, apiKey string, scannerURL string, scannerPort int) (*http.Response, error) {
-	url := fmt.Sprintf("http://%s:%d%s", scannerURL, scannerPort, endpoint)
+	url := fmt.Sprintf("%s:%d%s", scannerURL, scannerPort, endpoint)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -140,21 +140,6 @@ func SendCustomRequestSemgrep(requestMethod string, endpoint string, body []byte
 	}
 
 	return resp, nil
-}
-
-// getUserScannerZAPSettings gets the scanner settings for the user
-func GetUserScannerZAPSettings(userID uuid.UUID) (*models.ScannerSetting, error) {
-	var user models.User
-	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
-		return nil, fmt.Errorf("user couldn't find: %v", err)
-	}
-
-	var scannerSetting models.ScannerSetting
-	if err := database.DB.Where("company_id = ? AND scanner = ?", user.CompanyID, "zap").First(&scannerSetting).Error; err != nil {
-		return nil, fmt.Errorf("scanner settings couldn't find: %v", err)
-	}
-
-	return &scannerSetting, nil
 }
 
 func SemgrepGetUserSettings(userID uuid.UUID) (*models.ScannerSetting, error) {

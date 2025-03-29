@@ -1,14 +1,15 @@
 package controller
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/grealyve/lutenix/database"
 	"github.com/grealyve/lutenix/logger"
-	"github.com/grealyve/lutenix/models"
 	"github.com/grealyve/lutenix/services"
+	"gorm.io/gorm"
 )
 
 type ScanController struct {
@@ -39,107 +40,12 @@ func (sc *ScanController) handleSemgrepRequest(c *gin.Context, handler func(user
 
 	data, err := handler(userID)
 	if err != nil {
-		logger.Log.Error("Semgrep request failed:", err)                                   // Log the actual error
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Semgrep operation failed"}) // Generic error message to client
+		logger.Log.Error("Semgrep request failed:", err)                                             // Log the actual error
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Semgrep operation failed (handler)"}) // Generic error message to client
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": data})
-}
-
-func (sc *ScanController) StartScan(c *gin.Context) {
-	logger.Log.Debugln("StartScan endpoint called") // Debug: Entry Point
-	userID := c.MustGet("userID").(uuid.UUID)
-	logger.Log.Debugf("StartScan called for user ID: %s", userID)
-
-	var request struct {
-		Scanner   string `json:"scanner" binding:"required,oneof=acunetix zap semgrep"` // Include semgrep
-		TargetURL string `json:"target_url" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&request); err != nil {
-		logger.Log.Errorln("Invalid request body for StartScan:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	logger.Log.Debugf("StartScan request: %+v", request) // Log the request body
-
-	user, err := sc.UserService.GetUserByID(userID)
-	if err != nil {
-		logger.Log.Warnf("User not found for ID %s in StartScan", userID)
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"}) // 404 for user not found
-		return
-	}
-	logger.Log.Debugf("User company ID: %s, User ID: %s", user.CompanyID, user.ID)
-
-	scan := models.Scan{
-		CompanyID: user.CompanyID,
-		CreatedBy: userID,
-		Scanner:   request.Scanner,
-		TargetURL: request.TargetURL,
-		Status:    "pending",
-	}
-
-	if err := database.DB.Create(&scan).Error; err != nil {
-		logger.Log.Errorln("Failed to create scan record:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to initiate scan"})
-		return
-	}
-	logger.Log.Infof("Created scan record: %+v", scan)
-
-	var scanID interface{}
-
-	switch request.Scanner {
-	case "acunetix":
-		logger.Log.Debugln("Starting Acunetix scan")
-		//Find target id from the given url and trigger scan by id
-		targets, err := sc.AssetService.GetAllAcunetixTargets(userID)
-		if err != nil {
-			logger.Log.Errorln("Error fetching Acunetix targets:", err)                                   // Log the error
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve Acunetix targets"}) // Generic error
-			return
-		}
-		if targetID, ok := targets[request.TargetURL]; ok {
-			sc.AssetService.TriggerAcunetixScan(targetID, userID)
-			scanID = targetID
-			logger.Log.Infof("Triggered Acunetix scan for target ID: %s", targetID)
-		} else {
-			logger.Log.Warnf("Acunetix target not found for URL: %s", request.TargetURL)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Acunetix target couldn't found"})
-			return
-		}
-	case "zap":
-		logger.Log.Debugln("Starting ZAP scan")
-		startModel, err := sc.AssetService.StartZAPScan(request.TargetURL, userID)
-		if err != nil {
-			logger.Log.Errorln("Failed to start ZAP scan:", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start ZAP scan"})
-			return
-		}
-		scanID = startModel.ZapVulnScanID
-		logger.Log.Infof("Started ZAP scan. Vulnerability scan ID: %s", scanID)
-	case "semgrep":
-		logger.Log.Debugln("Starting Semgrep scan (placeholder)")
-		//  Semgrep doesn't "start" a scan in the same way.  You likely need to
-		//  trigger a scan via their API, or this might be a placeholder for
-		//  later integration with a CI/CD pipeline.  For now, I'll assume
-		//  it's a placeholder and just return the scan ID.
-		scanID = scan.ID //  Database ID.
-		logger.Log.Infof("Semgrep scan initiated (placeholder).  Scan ID: %s", scanID)
-
-	default:
-		logger.Log.Warnf("Invalid scanner specified: %s", request.Scanner)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scanner"})
-		return
-	}
-
-	// The following `if` condition is unnecessary, and has been removed.  Error handling
-	// is done within each `case` block above.  We *always* want to return a 200 OK
-	// (or appropriate error) if we get to this point.
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Scan started successfully",
-		"scan_id": scanID,
-	})
 }
 
 func (sc *ScanController) SemgrepScanDetails(c *gin.Context) {
@@ -229,7 +135,7 @@ func (sc *ScanController) SemgrepListSecrets(c *gin.Context) {
 }
 
 // handleZapRequest is a helper like handleSemgrepRequest, but for ZAP.
-func (sc *ScanController) handleZapRequest(c *gin.Context, handler func(userID uuid.UUID) (interface{}, error)) {
+func (sc *ScanController) handleZapRequest(c *gin.Context, handler func(userID uuid.UUID) (any, error)) {
 	userID := c.MustGet("userID").(uuid.UUID)
 	logger.Log.Debugf("handleZapRequest called for user ID: %s", userID)
 
@@ -263,7 +169,7 @@ func (sc *ScanController) ZapStartScan(c *gin.Context) {
 	}
 	logger.Log.Debugf("ZapStartScan request: %+v", request)
 
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
 		scan, err := sc.AssetService.StartZAPScan(request.TargetURL, userID)
 		if err != nil {
 			return nil, err // handleZapRequest will handle the error
@@ -272,21 +178,30 @@ func (sc *ScanController) ZapStartScan(c *gin.Context) {
 	})
 }
 
+// ZapGetScanStatus fonksiyonu zaten doğru şekilde DB UUID'sini bekliyor.
+// URL'den alınan scanIDStr'nin Parse edilmesi doğru.
 func (sc *ScanController) ZapGetScanStatus(c *gin.Context) {
-	logger.Log.Debugln("ZapGetScanStatus endpoint called") // Debug: Entry Point
-	scanIDStr := c.Param("scan_id")                        // Get scanID from the URL parameter.
-	scanID, err := uuid.Parse(scanIDStr)
+	logger.Log.Debugln("ZapGetScanStatus endpoint called")
+	scanIDStr := c.Param("scan_id")      // Get scanID from the URL parameter.
+	scanID, err := uuid.Parse(scanIDStr) // DB UUID'sini parse etmeyi dene
 	if err != nil {
 		logger.Log.Warnf("Invalid scan ID format in ZapGetScanStatus: %s", scanIDStr)
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scan ID format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid scan ID format (expected UUID)"}) // Hata mesajını netleştir
 		return
 	}
-	logger.Log.Debugf("ZapGetScanStatus called with scan ID: %s", scanID)
+	logger.Log.Debugf("ZapGetScanStatus called with DB scan ID: %s", scanID) // Log mesajını düzelt
 
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
+		// CheckZAPScanStatus DB UUID'si ile çalışmalı
 		status, err := sc.AssetService.CheckZAPScanStatus(scanID, userID)
 		if err != nil {
-			return nil, err
+			// Eğer hata "scan not found" ise 404 dönmek daha uygun olabilir
+			if errors.Is(err, gorm.ErrRecordNotFound) || err.Error() == "scan not found" {
+				logger.Log.Warnf("Scan not found in DB for ID %s in ZapGetScanStatus", scanID)
+				c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Scan not found in database"})
+				return nil, fmt.Errorf("aborting") // handleZapRequest'in devam etmemesi için
+			}
+			return nil, err // Diğer hatalar 500 olarak dönecek
 		}
 		return gin.H{"scan_id": scanID, "status": status}, nil
 	})
@@ -297,7 +212,7 @@ func (sc *ScanController) ZapPauseScan(c *gin.Context) {
 	scanID := c.Param("scan_id")
 	logger.Log.Debugf("ZapPauseScan called with scan ID: %s", scanID)
 
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
 		result, err := sc.AssetService.PauseZapScan(scanID, userID)
 		if err != nil {
 			return nil, err
@@ -311,7 +226,7 @@ func (sc *ScanController) ZapRemoveScan(c *gin.Context) {
 	scanID := c.Param("scan_id")
 	logger.Log.Debugf("ZapRemoveScan called with scan ID: %s", scanID)
 
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
 		result, err := sc.AssetService.RemoveZapScan(scanID, userID)
 		if err != nil {
 			return nil, err
@@ -325,7 +240,7 @@ func (sc *ScanController) ZapGetAlerts(c *gin.Context) {
 	scanID := c.Param("scan_id")
 	logger.Log.Debugf("ZapGetAlerts called with scan ID: %s", scanID)
 
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
 		alertIDs, err := sc.AssetService.GetZapAlerts(scanID, userID)
 		if err != nil {
 			return nil, err
@@ -339,7 +254,7 @@ func (sc *ScanController) ZapGetAlertDetail(c *gin.Context) {
 	alertID := c.Param("alert_id")
 	logger.Log.Debugf("ZapGetAlertDetail called with alert ID: %s", alertID)
 
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
 		finding, err := sc.AssetService.GetZapAlertDetail(alertID, userID)
 		if err != nil {
 			return nil, err
@@ -348,54 +263,12 @@ func (sc *ScanController) ZapGetAlertDetail(c *gin.Context) {
 	})
 }
 
-func (sc *ScanController) ZapAddZapSpiderURL(c *gin.Context) {
-	logger.Log.Debugln("ZapAddZapSpiderURL endpoint called") // Debug: Entry Point
-	var request struct {
-		TargetURL string `json:"target_url" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&request); err != nil {
-		logger.Log.Errorln("Invalid request body for ZapAddZapSpiderURL:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	logger.Log.Debugf("ZapAddZapSpiderURL request: %+v", request)
-
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
-		result, err := sc.AssetService.AddZapSpiderURL(request.TargetURL, userID)
-		if err != nil {
-			return nil, err
-		}
-		return gin.H{"spider_id": result}, nil
-	})
-}
-
-func (sc *ScanController) ZapAddZapScanURL(c *gin.Context) {
-	logger.Log.Debugln("ZapAddZapScanURL endpoint called") // Debug: Entry Point
-	var request struct {
-		TargetURL string `json:"target_url" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&request); err != nil {
-		logger.Log.Errorln("Invalid request body for ZapAddZapScanURL:", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	logger.Log.Debugf("ZapAddZapScanURL request: %+v", request)
-
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
-		result, err := sc.AssetService.AddZapScanURL(request.TargetURL, userID)
-		if err != nil {
-			return nil, err
-		}
-		return gin.H{"scan_id": result}, nil
-	})
-}
-
 func (sc *ScanController) ZapGetZapScanStatus(c *gin.Context) {
 	logger.Log.Debugln("ZapGetZapScanStatus endpoint called") // Debug: Entry Point
 	scanID := c.Param("scan_id")
 	logger.Log.Debugf("ZapGetZapScanStatus called with scan ID: %s", scanID)
 
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
 		result, err := sc.AssetService.GetZapScanStatus(scanID, userID)
 		if err != nil {
 			return nil, err
@@ -409,7 +282,7 @@ func (sc *ScanController) ZapGetZapSpiderStatus(c *gin.Context) {
 	scanID := c.Param("scan_id")
 	logger.Log.Debugf("ZapGetZapSpiderStatus called with scan ID: %s", scanID)
 
-	sc.handleZapRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
 		result, err := sc.AssetService.GetZapSpiderStatus(scanID, userID)
 		if err != nil {
 			return nil, err
@@ -418,7 +291,7 @@ func (sc *ScanController) ZapGetZapSpiderStatus(c *gin.Context) {
 	})
 }
 
-func (sc *ScanController) handleAcunetixRequest(c *gin.Context, handler func(userID uuid.UUID) (interface{}, error)) {
+func (sc *ScanController) handleAcunetixRequest(c *gin.Context, handler func(userID uuid.UUID) (any, error)) {
 	userID := c.MustGet("userID").(uuid.UUID)
 	logger.Log.Debugf("handleAcunetixRequest called for user ID: %s", userID)
 
@@ -441,7 +314,7 @@ func (sc *ScanController) handleAcunetixRequest(c *gin.Context, handler func(use
 
 func (sc *ScanController) AcunetixGetAllTargets(c *gin.Context) {
 	logger.Log.Debugln("AcunetixGetAllTargets endpoint called") // Debug: Entry Point
-	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
 		targets, err := sc.AssetService.GetAllAcunetixTargets(userID)
 		if err != nil {
 			return nil, err
@@ -468,7 +341,7 @@ func (sc *ScanController) AcunetixAddTarget(c *gin.Context) {
 	}
 	logger.Log.Debugf("AcunetixAddTarget request: %+v", request)
 
-	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
 		sc.AssetService.AddAcunetixTarget(request.TargetURL, userID)
 		return gin.H{"message": "Target addition request sent"}, nil // Acknowledge receipt.
 	})
@@ -476,7 +349,7 @@ func (sc *ScanController) AcunetixAddTarget(c *gin.Context) {
 
 func (sc *ScanController) AcunetixGetAllScans(c *gin.Context) {
 	logger.Log.Debugln("AcunetixGetAllScans endpoint called") // Debug: Entry Point
-	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
 		err := sc.AssetService.GetAllAcunetixScan(userID)
 		if err != nil {
 			return nil, err
@@ -489,7 +362,7 @@ func (sc *ScanController) AcunetixTriggerScan(c *gin.Context) {
 	targetID := c.Param("target_id") // Get target_id from the URL parameter
 	logger.Log.Debugf("AcunetixTriggerScan called with target ID: %s", targetID)
 
-	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
 		sc.AssetService.TriggerAcunetixScan(targetID, userID)
 		return gin.H{"message": "Scan triggered"}, nil // Simple acknowledgement
 	})
@@ -507,7 +380,7 @@ func (sc *ScanController) AcunetixDeleteTargets(c *gin.Context) {
 	}
 	logger.Log.Debugf("AcunetixDeleteTargets request: %+v", request)
 
-	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
 		sc.AssetService.DeleteAcunetixTargets(request.TargetIDs, userID)
 		return gin.H{"message": "Target deletion request sent"}, nil
 	})
@@ -516,7 +389,7 @@ func (sc *ScanController) AcunetixDeleteTargets(c *gin.Context) {
 func (sc *ScanController) AcunetixGetAllTargetsNotScanned(c *gin.Context) {
 	logger.Log.Debugln("AcunetixGetAllTargetsNotScanned endpoint called") // Debug: Entry point
 
-	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (interface{}, error) {
+	sc.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
 		targets, err := sc.AssetService.GetAllTargetsAcunetix()
 		if err != nil {
 			return nil, err
