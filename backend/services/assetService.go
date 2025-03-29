@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,6 +36,36 @@ var (
 	//Target ID - Scan Model
 	scansJsonMap = make(map[string]models.ScanJSONModel)
 )
+
+// ZapAlertDetail mirrors the structure of a single alert from the ZAP /core/view/alerts endpoint
+type ZapAlertDetail struct {
+	SourceID    string            `json:"sourceid"`
+	Other       string            `json:"other"`
+	Method      string            `json:"method"`
+	Evidence    string            `json:"evidence"`
+	PluginID    string            `json:"pluginId"`
+	CWEID       string            `json:"cweid"`
+	Confidence  string            `json:"confidence"`
+	WASCID      string            `json:"wascid"`
+	Description string            `json:"description"`
+	MessageID   string            `json:"messageId"`
+	URL         string            `json:"url"`
+	Reference   string            `json:"reference"`
+	Solution    string            `json:"solution"`
+	Alert       string            `json:"alert"` // Bu genellikle başlık oluyor
+	Param       string            `json:"param"`
+	Attack      string            `json:"attack"`
+	Name        string            `json:"name"` // Alert ile aynı olabilir, kontrol etmek lazım
+	Risk        string            `json:"risk"` // e.g., "High", "Medium", "Low", "Informational"
+	ID          string            `json:"id"`   // ZAP internal alert ID
+	AlertRef    string            `json:"alertRef"`
+	Tags        map[string]string `json:"tags"` // Ekstra bilgi için
+}
+
+// ZapAlertsResponse mirrors the top-level structure of the ZAP /core/view/alerts response
+type ZapAlertsResponse struct {
+	Alerts []ZapAlertDetail `json:"alerts"`
+}
 
 type AssetService struct{}
 
@@ -633,46 +664,6 @@ func (a *AssetService) PauseZapScan(scanID string, userID uuid.UUID) (string, er
 	return result.Result, nil
 }
 
-// ProcessScanResults processes and stores scan findings
-func (a *AssetService) ProcessScanResults(scan *models.Scan, userID uuid.UUID) error {
-	logger.Log.Debugf("ProcessScanResults called for scan ID: %s, user ID: %s", scan.ID, userID) // Debug: Entry Point
-	// Get alerts
-	alertIDs, err := a.GetZapAlerts(scan.ZapVulnScanID, userID)
-	if err != nil {
-		return err // Already logged
-	}
-
-	// Process each alert
-	for _, alertID := range alertIDs {
-		logger.Log.Debugf("Processing alert ID %s for scan ID %s", alertID, scan.ID)
-		finding, err := a.GetZapAlertDetail(alertID, userID)
-		if err != nil {
-			logger.Log.Warnf("Error getting details for alert ID %s: %v.  Continuing...", alertID, err)
-			continue // Log error but continue processing other alerts
-		}
-
-		// Associate finding with scan
-		finding.ScanID = scan.ID
-
-		if err := database.DB.Create(&finding).Error; err != nil {
-			logger.Log.Errorln("Error saving finding to database:", err)
-			return fmt.Errorf("couldn't save finding: %v", err)
-		}
-		logger.Log.Debugf("Finding for alert ID %s saved to database.", alertID)
-	}
-
-	// Update scan status and vulnerability count
-	scan.Status = models.ScanStatusCompleted
-	scan.VulnerabilityCount = len(alertIDs)
-	if err := database.DB.Save(scan).Error; err != nil {
-		logger.Log.Errorln("Error updating scan status:", err)
-		return fmt.Errorf("couldn't update scan status: %v", err)
-	}
-
-	logger.Log.Infof("Scan results processed for scan ID: %s.  %d vulnerabilities found.", scan.ID, scan.VulnerabilityCount)
-	return nil
-}
-
 // Both spider and vulnerability scan
 func (a *AssetService) StartZAPScan(url string, userID uuid.UUID) (*models.Scan, error) {
 	logger.Log.Debugf("StartZAPScan called for URL: %s, user ID: %s", url, userID) // Debug: Entry Point
@@ -751,11 +742,11 @@ func (a *AssetService) StartZAPScan(url string, userID uuid.UUID) (*models.Scan,
 
 // GetZapSpiderStatus gets the status of a ZAP spider scan
 func (a *AssetService) GetZapSpiderStatus(spiderScanID string, userID uuid.UUID) (string, error) {
-	logger.Log.Debugf("GetZapSpiderStatus called for spider scan ID: %s, user ID: %s", spiderScanID, userID) // Debug: Entry Point
+	logger.Log.Debugf("GetZapSpiderStatus called for spider scan ID: %s, user ID: %s", spiderScanID, userID)
 
 	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
-		return "", err // Already logged in getUserScannerZAPSettings
+		return "", err
 	}
 
 	endpoint := fmt.Sprintf("/JSON/spider/view/status/?apikey=%s&scanId=%s", scannerSetting.APIKey, spiderScanID)
@@ -783,38 +774,207 @@ func (a *AssetService) GetZapSpiderStatus(spiderScanID string, userID uuid.UUID)
 
 // CheckScanStatus checks the current status of a scan
 func (a *AssetService) CheckZAPScanStatus(scanID uuid.UUID, userID uuid.UUID) (string, error) {
-	logger.Log.Debugf("CheckZAPScanStatus called for scan ID: %s, user ID: %s", scanID, userID) // Debug: Entry Point
+	logger.Log.Debugf("CheckZAPScanStatus called for scan ID: %s, user ID: %s", scanID, userID)
 	var scan models.Scan
+	
 	if err := database.DB.First(&scan, "id = ?", scanID).Error; err != nil {
-		logger.Log.Errorf("Scan not found for ID %s: %v", scanID, err)
-		return "", fmt.Errorf("scan not found: %v", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) { return "", fmt.Errorf("scan not found") }
+		logger.Log.Errorf("Error fetching scan %s: %v", scanID, err)
+		return "", fmt.Errorf("database error finding scan: %v", err)
 	}
 
-	if scan.Status != models.ScanStatusProcessing {
-		logger.Log.Infof("Scan ID %s is not in processing state.  Current status: %s", scanID, scan.Status)
+	if scan.Status == models.ScanStatusCompleted || scan.Status == models.ScanStatusFailed {
+		logger.Log.Infof("Scan %s already in terminal state: %s. No action needed.", scanID, scan.Status)
 		return scan.Status, nil
 	}
 
-	// Check ZAP scan status
-	status, err := a.GetZapScanStatus(scan.ZapVulnScanID, userID)
-	if err != nil {
-		logger.Log.Errorln("Error checking ZAP scan status:", err)
-		return "", err // Already logged in GetZapScanStatus
+	if scan.Status != models.ScanStatusProcessing {
+		logger.Log.Warnf("Scan %s is in unexpected state '%s'. Returning current status.", scanID, scan.Status)
+		return scan.Status, nil
 	}
-	logger.Log.Infof("ZAP vulnerability scan status for scan ID %s: %s", scan.ZapVulnScanID, status)
 
-	if status == "100" {
-		logger.Log.Infof("ZAP vulnerability scan completed for scan ID %s", scanID)
-		// Process results when scan is complete
-		if err := a.ProcessScanResults(&scan, userID); err != nil {
-			scan.Status = models.ScanStatusFailed
-			database.DB.Save(&scan)
-			logger.Log.Errorf("Error processing scan results for scan ID %s: %v", scanID, err)
-			return scan.Status, err // Already logged in ProcessScanResults
+	if scan.ZapVulnScanID == "" {
+		logger.Log.Errorf("Scan %s is processing but has no ZapVulnScanID. Failing scan.", scanID)
+		scan.Status = models.ScanStatusFailed
+		if err := database.DB.Save(&scan).Error; err != nil {
+			logger.Log.Errorf("Failed to save scan %s status to Failed (missing ZapID): %v", scanID, err)
+			return models.ScanStatusFailed, fmt.Errorf("missing ZAP scan ID and failed to update status: %v", err)
 		}
+		return models.ScanStatusFailed, fmt.Errorf("missing ZAP vulnerability scan ID")
+	}
+
+	zapStatus, err := a.GetZapScanStatus(scan.ZapVulnScanID, userID)
+	if err != nil {
+		logger.Log.Errorf("Error checking ZAP active scan status for scan %s (ZAP ID: %s): %v", scan.ID, scan.ZapVulnScanID, err)
+		return scan.Status, err 
+	}
+	logger.Log.Infof("ZAP active scan status for DB scan ID %s (ZAP ID %s): %s", scan.ID, scan.ZapVulnScanID, zapStatus)
+
+	if zapStatus == "100" && scan.Status == models.ScanStatusProcessing {
+		logger.Log.Infof("ZAP active scan completed for scan ID %s and DB status is Processing. Fetching and saving results...", scan.ID)
+
+		savedFindings, processErr := a.FetchAndSaveZapFindingsByURL(scan.TargetURL, userID)
+		if processErr != nil {
+			logger.Log.Errorf("Error fetching/saving results for scan ID %s: %v. Failing scan.", scan.ID, processErr)
+			scan.Status = models.ScanStatusFailed
+			scan.VulnerabilityCount = 0
+			if err := database.DB.Save(&scan).Error; err != nil {
+				logger.Log.Errorf("Failed to save scan %s status to Failed after processing error: %v", scanID, err)
+				return models.ScanStatusFailed, fmt.Errorf("processing error (%v) and failed to update status (%v)", processErr, err)
+			}
+			return models.ScanStatusFailed, processErr
+		}
+
+		logger.Log.Infof("Successfully processed results for scan %s. Updating status to Completed.", scan.ID)
+		scan.Status = models.ScanStatusCompleted
+		scan.VulnerabilityCount = len(savedFindings)
+		logger.Log.Debugf("Attempting to save Scan %s with Status: %s, VulnCount: %d", scan.ID, scan.Status, scan.VulnerabilityCount)
+		if err := database.DB.Save(&scan).Error; err != nil {
+			logger.Log.Errorf("CRITICAL: Findings saved for scan %s, but FAILED to update scan status/count to Completed: %v", scan.ID, err)
+			return models.ScanStatusCompleted, fmt.Errorf("findings saved, but failed to update scan status: %v", err)
+		}
+		logger.Log.Infof("Successfully updated scan %s status to %s with %d vulnerabilities.", scan.ID, scan.Status, scan.VulnerabilityCount)
+
+	} else if zapStatus != "100" {
+		logger.Log.Debugf("ZAP scan %s (ZAP ID %s) is still running (%s%%). DB status (%s) remains unchanged.", scan.ID, scan.ZapVulnScanID, zapStatus, scan.Status)
+	} else {
+		logger.Log.Debugf("ZAP scan %s (ZAP ID %s) is at 100%%, but DB status is already '%s'. No action needed.", scan.ID, scan.ZapVulnScanID, scan.Status)
 	}
 
 	return scan.Status, nil
+}
+
+/*
+	func (a *AssetService) GetZapAlertsByURLFromZAP(baseURL string, userID uuid.UUID) ([]ZapAlertDetail, error) {
+		logger.Log.Debugf("getZapAlertsByURLFromZAP called for baseURL: %s, user ID: %s", baseURL, userID)
+
+		scannerSetting, err := a.getUserScannerZAPSettings(userID)
+		if err != nil {
+			return nil, err
+		}
+
+		encodedBaseURL := url.QueryEscape(baseURL)
+
+		endpoint := fmt.Sprintf("/JSON/core/view/alerts/?apikey=%s&baseurl=%s&start=&count=",
+			scannerSetting.APIKey,
+			encodedBaseURL,
+		)
+
+		logger.Log.Debugf("Fetching ZAP alerts from: %s", endpoint)
+		resp, err := utils.SendGETRequestZap(endpoint, scannerSetting.APIKey, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
+		if err != nil {
+			logger.Log.Errorf("Error fetching ZAP alerts for base URL %s: %v", baseURL, err)
+			return nil, fmt.Errorf("alerts couldn't be fetched from ZAP: %v", err)
+		}
+		defer resp.Body.Close()
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			logger.Log.Errorf("Error reading ZAP alerts response body for base URL %s: %v", baseURL, err)
+			return nil, fmt.Errorf("failed to read alerts response body: %v", err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			logger.Log.Errorf("ZAP get alerts by URL request failed for base URL %s with status %d: %s", baseURL, resp.StatusCode, string(bodyBytes))
+			return nil, fmt.Errorf("ZAP get alerts API returned non-OK status: %d", resp.StatusCode)
+		}
+
+		var result ZapAlertsResponse
+		if err := json.Unmarshal(bodyBytes, &result); err != nil {
+			logger.Log.Errorf("Error decoding ZAP alerts response for base URL %s: %v. Body: %s", baseURL, err, string(bodyBytes))
+			return nil, fmt.Errorf("alerts response couldn't be handled: %v", err)
+		}
+
+		logger.Log.Infof("Successfully fetched %d alerts from ZAP for base URL: %s", len(result.Alerts), baseURL)
+		return result.Alerts, nil
+	}
+*/
+
+// FetchAndSaveZapFindingsByURL fetches ZAP findings for a given URL and saves them to the database
+func (a *AssetService) FetchAndSaveZapFindingsByURL(baseURL string, userID uuid.UUID) ([]models.Finding, error) {
+	logger.Log.Debugf("FetchAndSaveZapFindingsByURL called for baseURL: %s, user ID: %s", baseURL, userID)
+
+	var user models.User
+	if err := database.DB.Select("company_id").First(&user, "id = ?", userID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) { return nil, fmt.Errorf("user not found") }
+		logger.Log.Errorf("Error fetching user %s: %v", userID, err)
+		return nil, fmt.Errorf("could not retrieve user information: %v", err)
+	}
+
+	var latestScan models.Scan
+	err := database.DB.Where("company_id = ? AND target_url = ? AND scanner = ?",
+		user.CompanyID, baseURL, "zap",
+	).Order("created_at DESC").First(&latestScan).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("no scan record found for the specified URL in the database")
+		}
+		logger.Log.Errorf("Error finding latest scan for URL %s, company %s: %v", baseURL, user.CompanyID, err)
+		return nil, fmt.Errorf("database error finding scan record: %v", err)
+	}
+	logger.Log.Infof("Found associated scan record ID: %s for URL: %s", latestScan.ID, baseURL)
+
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
+	if err != nil { return nil, err }
+	encodedBaseURL := url.QueryEscape(baseURL)
+	endpoint := fmt.Sprintf("/JSON/core/view/alerts/?apikey=%s&baseurl=%s&start=&count=",
+		scannerSetting.APIKey, encodedBaseURL)
+
+	logger.Log.Debugf("Fetching ZAP alerts from: %s", endpoint)
+	resp, err := utils.SendGETRequestZap(endpoint, scannerSetting.APIKey, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
+	if err != nil { return nil, fmt.Errorf("alerts couldn't be fetched from ZAP: %v", err) }
+	defer resp.Body.Close()
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil { return nil, fmt.Errorf("failed to read alerts response body: %v", err) }
+	if resp.StatusCode != http.StatusOK { return nil, fmt.Errorf("ZAP get alerts API returned non-OK status: %d", resp.StatusCode) }
+	var zapResult ZapAlertsResponse
+	if err := json.Unmarshal(bodyBytes, &zapResult); err != nil { return nil, fmt.Errorf("ZAP alerts response couldn't be handled: %v", err) }
+	logger.Log.Infof("Successfully fetched %d alerts from ZAP for base URL: %s", len(zapResult.Alerts), baseURL)
+
+
+	savedFindings := []models.Finding{}
+
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		logger.Log.Errorf("Failed to begin transaction for scan %s: %v", latestScan.ID, tx.Error)
+		return nil, fmt.Errorf("database transaction could not start: %v", tx.Error)
+	}
+
+	logger.Log.Debugf("Deleting existing findings for scan ID: %s", latestScan.ID)
+	if err := tx.Where("scan_id = ?", latestScan.ID).Delete(&models.Finding{}).Error; err != nil {
+		tx.Rollback() // Hata olursa işlemi geri al
+		logger.Log.Errorf("Failed to delete existing findings for scan %s: %v", latestScan.ID, err)
+		return nil, fmt.Errorf("failed to clear previous findings: %v", err)
+	}
+	logger.Log.Infof("Successfully deleted existing findings for scan %s", latestScan.ID)
+
+	for _, zapAlert := range zapResult.Alerts {
+		finding := models.Finding{
+			ScanID:            latestScan.ID,
+			URL:               zapAlert.URL,
+			Risk:              zapAlert.Risk,
+			VulnerabilityName: zapAlert.Alert,
+			Location:          zapAlert.URL,
+		}
+
+		if err := tx.Create(&finding).Error; err != nil {
+			tx.Rollback()
+			logger.Log.Errorf("Error saving finding (Vuln: %s) within transaction for scan %s: %v", finding.VulnerabilityName, latestScan.ID, err)
+			// Tek bir hata bile tüm işlemi başarısız kılar (Transaction mantığı)
+			return nil, fmt.Errorf("failed to save finding '%s' during transaction: %v", finding.VulnerabilityName, err)
+		}
+		savedFindings = append(savedFindings, finding)
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		logger.Log.Errorf("Failed to commit transaction for scan %s: %v", latestScan.ID, err)
+		return nil, fmt.Errorf("database transaction could not commit: %v", err)
+	}
+
+	logger.Log.Infof("Transaction committed. Processed %d ZAP alerts, saved %d findings for scan %s.", len(zapResult.Alerts), len(savedFindings), latestScan.ID)
+
+	return savedFindings, nil
 }
 
 // Lists semgrep deployments
@@ -963,7 +1123,7 @@ func (a *AssetService) SemgrepListFindings(deploymentSlug string, userID uuid.UU
 	}
 	companyID := user.CompanyID
 	logger.Log.Debugf("Found CompanyID: %s for UserID: %s", companyID, userID)
-	
+
 	endpoint := fmt.Sprintf("/api/v1/deployments/%s/findings", deploymentSlug)
 	resp, err := utils.SendGETRequestSemgrep(endpoint, userID)
 	if err != nil {
@@ -1007,7 +1167,7 @@ func (a *AssetService) SemgrepListFindings(deploymentSlug string, userID uuid.UU
 
 	var targetURLForScan string
 	if len(apiResponse.Findings) > 0 && apiResponse.Findings[0].Repository.URL != "" {
-		targetURLForScan = apiResponse.Findings[0].Repository.URL 
+		targetURLForScan = apiResponse.Findings[0].Repository.URL
 		logger.Log.Debugf("Using Repository URL '%s' as TargetURL for Scan record.", targetURLForScan)
 	} else {
 		targetURLForScan = deploymentSlug
@@ -1025,8 +1185,8 @@ func (a *AssetService) SemgrepListFindings(deploymentSlug string, userID uuid.UU
 		CreatedBy: userID,
 	}
 	assignAttrs := models.Scan{
-		Status:         models.ScanStatusProcessing, 
-		DeploymentSlug: deploymentSlug,             
+		Status:         models.ScanStatusProcessing,
+		DeploymentSlug: deploymentSlug,
 	}
 
 	err = database.DB.Where(queryConditions).
@@ -1100,7 +1260,7 @@ func (a *AssetService) SemgrepListFindings(deploymentSlug string, userID uuid.UU
 		}
 
 		return nil
-	}) 
+	})
 	if err != nil {
 		logger.Log.Errorf("Failed transaction while processing findings for ScanID %s: %v", scan.ID, err)
 		database.DB.Model(&scan).Where("status != ?", models.ScanStatusFailed).Update("status", models.ScanStatusFailed)

@@ -291,6 +291,37 @@ func (sc *ScanController) ZapGetZapSpiderStatus(c *gin.Context) {
 	})
 }
 
+// GetZapScanResultsByURL retrieves the latest completed scan results for a given target URL.
+func (sc *ScanController) GetZapScanResultsByURL(c *gin.Context) {
+	logger.Log.Debugln("GetZapScanResultsByURL endpoint called")
+
+	targetURL := c.Query("target_url")
+	if targetURL == "" {
+		logger.Log.Warn("GetZapScanResultsByURL called without target_url query parameter")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing 'target_url' query parameter"})
+		return
+	}
+
+	logger.Log.Debugf("GetZapScanResultsByURL called for target URL: %s", targetURL)
+
+	// Use the existing handleZapRequest helper
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
+		findings, err := sc.AssetService.FetchAndSaveZapFindingsByURL(targetURL, userID)
+		if err != nil {
+			// Specific handling for "user not found" or other service errors if needed
+			if err.Error() == "user not found" {
+				c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "User not found"})
+				return nil, fmt.Errorf("aborting") // Prevent handleZapRequest from sending 500
+			}
+			logger.Log.Errorf("Error in GetScanResultsByURL service call: %v", err)
+			// Let handleZapRequest handle other errors as Internal Server Error
+			return nil, err
+		}
+
+		return gin.H{"findings": findings}, nil // Return the findings directly.
+	})
+}
+
 func (sc *ScanController) handleAcunetixRequest(c *gin.Context, handler func(userID uuid.UUID) (any, error)) {
 	userID := c.MustGet("userID").(uuid.UUID)
 	logger.Log.Debugf("handleAcunetixRequest called for user ID: %s", userID)

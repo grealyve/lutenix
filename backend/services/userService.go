@@ -89,7 +89,7 @@ func (us *UserService) UpdateScannerSetting(setting models.ScannerSetting) error
 	result := database.DB.Where("company_id = ? AND scanner = ?", setting.CompanyID, setting.Scanner).First(&existingSetting)
 
 	if result.Error == nil {
-		updates := make(map[string]interface{})
+		updates := make(map[string]any)
 
 		// Only include APIKey in the update if it's not empty
 		if setting.APIKey != "" {
