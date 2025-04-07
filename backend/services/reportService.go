@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/google/uuid"
@@ -19,10 +21,14 @@ var (
 
 const template_id = "11111111-1111-1111-1111-111111111111"
 
-type ReportService struct{}
+type ReportService struct {
+	AssetService *AssetService
+}
 
 func (r *ReportService) NewReportService() *ReportService {
-	return &ReportService{}
+	return &ReportService{
+		AssetService: &AssetService{},
+	}
 }
 
 func (r *ReportService) GetAcunetixReports(userID uuid.UUID) {
@@ -120,3 +126,63 @@ Result:
   "generate": "C:\\Users\\Grealyve\\2025-02-03-ZAP-Report-abdiibrahim.com.html"
 }
 */
+
+func (r *ReportService) GenerateZAPReport(userID uuid.UUID, targetSites string) (string, error) {
+	logTag := "GenerateZAPReport"
+	logger.Log.Debugf("[%s] Called for UserID: %s, Sites: %s", logTag, userID, targetSites)
+
+	// 1. ZAP Ayarlarını Al
+	scannerSetting, err := r.AssetService.getUserScannerZAPSettings(userID)
+	if err != nil {
+		logger.Log.Errorf("[%s] Error getting ZAP settings for UserID %s: %v", logTag, userID, err)
+		return "", fmt.Errorf("couldn't get ZAP settings: %w", err)
+	}
+	logger.Log.Debugf("[%s] ZAP settings retrieved: URL=%s, Port=%d", logTag, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
+
+	queryParams := url.Values{}
+	queryParams.Add("apikey", scannerSetting.APIKey)
+	queryParams.Add("sites", targetSites) // Birden fazla site virgülle ayrılmış olmalı
+
+	endpointPath := "/JSON/reports/action/generate/"
+	fullURL := fmt.Sprintf("%s:%d%s", scannerSetting.ScannerURL, scannerSetting.ScannerPort, endpointPath)
+	encodedQuery := queryParams.Encode()
+
+	logger.Log.Debugf("[%s] Sending ZAP report generation request to: %s with query: %s", logTag, fullURL, encodedQuery)
+	requestPathWithQuery := fmt.Sprintf("%s?%s", endpointPath, encodedQuery)
+
+	resp, err := utils.SendGETRequestZap(requestPathWithQuery, scannerSetting.APIKey, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
+	if err != nil {
+		logger.Log.Errorf("[%s] Error creating HTTP request: %v", logTag, err)
+		return "", fmt.Errorf("failed to create report request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Log.Errorf("[%s] Error reading ZAP response body: %v", logTag, err)
+		return "", fmt.Errorf("failed to read ZAP response: %w", err)
+	}
+	logger.Log.Debugf("[%s] ZAP Response Status: %s, Body: %s", logTag, resp.Status, string(bodyBytes))
+
+	if resp.StatusCode != http.StatusOK {
+		logger.Log.Errorf("[%s] ZAP API returned non-OK status: %s", logTag, resp.Status)
+		return "", fmt.Errorf("ZAP API failed with status %s", resp.Status)
+	}
+
+	var result struct {
+		Generate string `json:"generate"`
+	}
+
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		logger.Log.Errorf("[%s] Error decoding ZAP generate report response: %v", logTag, err)
+		return "", fmt.Errorf("failed to decode ZAP response: %w", err)
+	}
+
+	if result.Generate == "" {
+		logger.Log.Warnf("[%s] ZAP response decoded successfully, but 'generate' field is empty.", logTag)
+		return "", fmt.Errorf("ZAP did not return a report path")
+	}
+
+	logger.Log.Infof("[%s] ZAP report generated successfully at: %s", logTag, result.Generate)
+	return result.Generate, nil
+}

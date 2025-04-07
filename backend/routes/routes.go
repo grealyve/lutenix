@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	scanController  = controller.NewScanController()
-	userController  = controller.NewUserController()
-	assetController = controller.NewAssetController()
+	scanController   = controller.NewScanController()
+	userController   = controller.NewUserController()
+	assetController  = controller.NewAssetController()
+	reportController = controller.NewReportController()
 )
 
 func AcunetixRoutes(acunetixRoutes *gin.Engine) {
@@ -71,4 +72,6 @@ func ZapRoutes(zapRoutes *gin.Engine) {
 	zap.GET("/alerts/detail/:alert_id", scanController.ZapGetAlertDetail)
 
 	zap.GET("/results", scanController.GetZapScanResultsByURL)
+
+	zap.POST("/report", reportController.GenerateZAPReport)
 }

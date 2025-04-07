@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -21,6 +22,11 @@ func NewReportController() *ReportController {
 		ReportService: &services.ReportService{},
 		UserService:   &services.UserService{},
 	}
+}
+
+type GenerateZapReportRequest struct {
+	Title       string `json:"title" binding:"required"`
+	TargetSites string `json:"target_sites" binding:"required"`
 }
 
 func (rc *ReportController) CreateReport(c *gin.Context) {
@@ -94,4 +100,51 @@ func (rc *ReportController) GetReports(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"reports": reports})
+}
+
+func (rc *ReportController) GenerateZAPReport(c *gin.Context) {
+	logTag := "Controller.GenerateZAPReport"
+	logger.Log.Debugf("[%s] Endpoint called", logTag)
+
+	userID := c.MustGet("userID").(uuid.UUID)
+	logger.Log.Debugf("[%s] Called for UserID: %s", logTag, userID)
+
+	var request GenerateZapReportRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		logger.Log.Errorf("[%s] Invalid request body: %v", logTag, err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+	logger.Log.Debugf("[%s] Request body validated: %+v", logTag, request)
+
+	_, errUser := rc.UserService.GetUserByID(userID)
+	if errUser != nil {
+		logger.Log.Warnf("[%s] User not found for ID %s", logTag, userID)
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	reportPath, err := rc.ReportService.GenerateZAPReport(
+		userID,
+		request.Title,
+	)
+
+	if err != nil {
+		logger.Log.Errorf("[%s] Error calling ReportService.GenerateZAPReport: %v", logTag, err)
+		if strings.Contains(err.Error(), "couldn't get ZAP settings") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Could not retrieve ZAP scanner settings for the user."})
+		} else if strings.Contains(err.Error(), "ZAP API error") || strings.Contains(err.Error(), "ZAP API failed") {
+			c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to generate report via ZAP API: " + err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate ZAP report: " + err.Error()})
+		}
+		return
+	}
+
+	// Başarılı yanıt
+	logger.Log.Infof("[%s] ZAP report generated successfully for UserID %s. Path: %s", logTag, userID, reportPath)
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "ZAP report generation request successful",
+		"report_path": reportPath,
+	})
 }
