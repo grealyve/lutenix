@@ -52,11 +52,6 @@ const SemgrepScans = () => {
     fetchData();
   }, []);
 
-  const handleStartScan = () => {
-    // This would open a modal or navigate to a new scan form
-    alert('Start scan functionality would open a form to configure a new scan');
-  };
-
   const handleDeleteScan = (selectedScanIds) => {
     // This would call an API to delete the selected scans
     if (window.confirm(`Are you sure you want to delete ${selectedScanIds.length} scan(s)?`)) {
@@ -87,7 +82,6 @@ const SemgrepScans = () => {
         <ScanTable
           title="Semgrep Scans"
           data={scanData}
-          onStartScan={handleStartScan}
           onDeleteScan={handleDeleteScan}
           onStopScan={handleStopScan}
         />

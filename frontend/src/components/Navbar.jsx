@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Navbar, Nav, Container, Badge, Collapse } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
-import lutenixLogo from '../assets/lutenix-logo.svg';
+import lutenixLogo from '../assets/lutenix-logo.png';
 
 const NavbarComponent = () => {
   const location = useLocation();
@@ -248,43 +248,70 @@ const NavbarComponent = () => {
           </div>
         </Nav>
         <div className="mt-auto mb-4 px-3">
-          <Nav className="flex-column">
-            <Nav.Link 
-              as={Link} 
-              to="/settings" 
-              className={`py-2 ${isSubPathActive('/settings') ? 'active' : ''}`}
-            >
-              <i className="bi bi-gear me-2"></i>
-              Settings
-            </Nav.Link>
-            
-            <Nav.Link 
-              as={Link} 
-              to="/help" 
-              className={`py-2 ${isSubPathActive('/help') ? 'active' : ''}`}
-            >
-              <i className="bi bi-question-circle me-2"></i>
-              Help
-            </Nav.Link>
-            
-            <Nav.Link 
-              onClick={handleLogout}
-              className="py-2 text-danger"
-            >
-              <i className="bi bi-box-arrow-right me-2"></i>
-              Logout
-            </Nav.Link>
-          </Nav>
+          <Nav.Link 
+            as={Link} 
+            to="/settings" 
+            className={`py-2 d-flex align-items-center ${isSubPathActive('/settings') ? 'active' : ''}`}
+          >
+            <i className="bi bi-gear me-2"></i>
+            Settings
+          </Nav.Link>
           
-          <div className="d-flex mt-3 gap-3">
-            <a href="#" className="text-light">
-              <i className="bi bi-github fs-5"></i>
+          {user && user.role === 'admin' && (
+            <>
+              <Nav.Link 
+                as={Link} 
+                to="/admin" 
+                className={`py-2 d-flex align-items-center ${isSubPathActive('/admin') ? 'active' : ''}`}
+              >
+                <i className="bi bi-person-badge me-2"></i>
+                Admin Panel
+              </Nav.Link>
+              <Nav.Link 
+                as={Link} 
+                to="/company-creation" 
+                className={`py-2 d-flex align-items-center ${isSubPathActive('/company-creation') ? 'active' : ''}`}
+              >
+                <i className="bi bi-building me-2"></i>
+                Company Creation
+              </Nav.Link>
+              <Nav.Link 
+                as={Link} 
+                to="/company-relation" 
+                className={`py-2 d-flex align-items-center ${isSubPathActive('/company-relation') ? 'active' : ''}`}
+              >
+                <i className="bi bi-diagram-3 me-2"></i>
+                Company Relations
+              </Nav.Link>
+            </>
+          )}
+          
+          <Nav.Link 
+            as={Link} 
+            to="/help" 
+            className={`py-2 d-flex align-items-center ${isSubPathActive('/help') ? 'active' : ''}`}
+          >
+            <i className="bi bi-question-circle me-2"></i>
+            Help
+          </Nav.Link>
+          
+          <Nav.Link 
+            onClick={handleLogout} 
+            className="py-2 d-flex align-items-center text-danger mt-2"
+          >
+            <i className="bi bi-box-arrow-right me-2"></i>
+            Logout
+          </Nav.Link>
+          
+          <div className="d-flex gap-2 mt-3">
+            <a href="https://twitter.com/lutenixsec" target="_blank" rel="noopener noreferrer" className="text-muted">
+              <i className="bi bi-twitter fs-4"></i>
             </a>
-            <a href="#" className="text-light">
-              <i className="bi bi-twitter fs-5"></i>
+            <a href="https://youtube.com/lutenixsec" target="_blank" rel="noopener noreferrer" className="text-muted">
+              <i className="bi bi-youtube fs-4"></i>
             </a>
-            <a href="#" className="text-light">
-              <i className="bi bi-youtube fs-5"></i>
+            <a href="https://github.com/lutenixsec" target="_blank" rel="noopener noreferrer" className="text-muted">
+              <i className="bi bi-github fs-4"></i>
             </a>
           </div>
         </div>

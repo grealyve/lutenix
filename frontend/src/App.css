@@ -198,3 +198,282 @@ body {
 .read-the-docs {
   color: #888;
 }
+
+/* Assets Page Styles */
+.page-content {
+  padding: 1.5rem 0;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.table-responsive {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+th[class*="cursor-pointer"]:hover {
+  background-color: #f8f9fa;
+}
+
+.table thead th {
+  border-top: none;
+  border-bottom: 2px solid #e9ecef;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.pagination {
+  margin-bottom: 0;
+}
+
+.dropdown-toggle::after {
+  margin-left: 0.5em;
+}
+
+/* Badge styles */
+.badge {
+  font-weight: 500;
+  padding: 0.35em 0.65em;
+}
+
+.badge.bg-success, 
+.badge.bg-danger,
+.badge.bg-warning,
+.badge.bg-info {
+  color: #fff;
+}
+
+.badge.bg-warning {
+  color: #212529;
+}
+
+/* Button styles */
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* Card Styles */
+.card.shadow-sm {
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+}
+
+.card.shadow {
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Form Controls */
+.form-control:focus {
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Add animation to table rows */
+.table tbody tr {
+  transition: background-color 0.15s ease-in-out;
+}
+
+.table tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+/* Make filter buttons and dropdowns look nicer */
+.dropdown-menu {
+  padding: 0.5rem 0;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  border: none;
+}
+
+.dropdown-item {
+  padding: 0.5rem 1.5rem;
+}
+
+.dropdown-item:hover, .dropdown-item:focus {
+  background-color: #f8f9fa;
+}
+
+/* Responsive adjustments */
+@media (max-width: 767.98px) {
+  .text-md-end {
+    text-align: left !important;
+  }
+  
+  .d-flex.justify-content-md-end {
+    justify-content: flex-start !important;
+    margin-top: 1rem;
+  }
+}
+
+/* Custom tooltip appearance */
+.tooltip .tooltip-inner {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+}
+
+/* Admin Panel Styles */
+.admin-panel-header {
+  background-color: #343a40;
+  color: white;
+  padding: 1.5rem 2rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.admin-table th {
+  background-color: #212529 !important;
+  color: white !important;
+  border-bottom: none !important;
+}
+
+.admin-table .badge {
+  font-size: 0.75rem;
+  padding: 0.35em 0.65em;
+}
+
+.admin-action-buttons {
+  background-color: #f8f9fa;
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.admin-panel .modal-header {
+  background-color: #f8f9fa;
+  border-bottom: none;
+}
+
+.admin-panel .modal-footer {
+  border-top: none;
+  padding-top: 0;
+}
+
+/* Override Bootstrap checkbox styles for better visibility */
+.form-check-input:checked {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+/* Custom table styles for the admin panel */
+.table-responsive {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table.admin-table tbody tr:hover {
+  background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Add nice animation to the alerts */
+.alert {
+  animation: fadeInDown 0.5s ease-out;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Company Creation Panel styles */
+.company-creation-form {
+  background-color: #f8f9fa;
+  border-radius: 10px;
+}
+
+.company-creation-form .form-control-lg {
+  padding: 12px 15px;
+  font-size: 1rem;
+  border-radius: 8px;
+  border: 1px solid #ced4da;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.company-creation-form .form-control-lg:focus {
+  border-color: #0dcaf0;
+  box-shadow: 0 0 0 0.25rem rgba(13, 202, 240, 0.25);
+}
+
+.company-creation-form .btn-info {
+  background-color: #0dcaf0;
+  border-color: #0dcaf0;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.company-creation-form .btn-info:hover:not(:disabled) {
+  background-color: #0baccc;
+  border-color: #0baccc;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.company-creation-form .btn-info:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.company-creation-form .form-label {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  color: #495057;
+}
+
+/* Animation for the company creation card */
+.company-creation-card {
+  transition: all 0.3s ease;
+}
+
+.company-creation-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Company Relation Panel styles */
+.relation-panel-container {
+  background-color: rgba(248, 249, 250, 0.8);
+  backdrop-filter: blur(10px);
+  padding: 2rem;
+  border-radius: 12px;
+}
+
+.relation-form {
+  transition: all 0.3s ease;
+}
+
+.relation-form:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* Divider line between cards on mobile */
+@media (max-width: 992px) {
+  .relation-panel-divider {
+    margin: 2rem 0;
+    height: 1px;
+    background: linear-gradient(to right, transparent, rgba(0, 0, 0, 0.1), transparent);
+  }
+}
+
+/* Custom input focus animation */
+.relation-form .form-control-lg:focus {
+  box-shadow: 0 0 0 0.25rem rgba(13, 202, 240, 0.3);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(13, 202, 240, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(13, 202, 240, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(13, 202, 240, 0);
+  }
+}

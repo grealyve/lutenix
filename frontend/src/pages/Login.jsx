@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-bootstrap';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import lutenixLogo from '../assets/lutenix-logo.svg';
+import lutenixLogo from '../assets/lutenix-logo.png';
 
 const Login = () => {
   const [email, setEmail] = useState('');
