@@ -12,13 +12,11 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Check if user is already logged in
     const storedToken = localStorage.getItem('auth_token');
     if (storedToken) {
       setToken(storedToken);
       setIsAuthenticated(true);
-      
-      // Parse the token to get user information
+
       try {
         const payload = JSON.parse(atob(storedToken.split('.')[1]));
         setUser({
@@ -44,8 +42,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('auth_token', accessToken);
         setToken(accessToken);
         setIsAuthenticated(true);
-        
-        // Parse the token to get user information
+
         try {
           const payload = JSON.parse(atob(accessToken.split('.')[1]));
           setUser({
@@ -71,11 +68,18 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem('auth_token');
-    setToken(null);
-    setUser(null);
-    setIsAuthenticated(false);
+  const logout = async () => {
+    try {
+      // Call the logout API endpoint
+      await authAPI.logout();
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
+      localStorage.removeItem('auth_token');
+      setToken(null);
+      setUser(null);
+      setIsAuthenticated(false);
+    }
   };
 
   const value = {

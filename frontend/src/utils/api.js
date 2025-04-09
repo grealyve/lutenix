@@ -90,6 +90,10 @@ export const authAPI = {
   refreshToken: async () => {
     return apiCall('/users/refresh-token', { method: 'POST' });
   },
+
+  logout: async () => {
+    return apiCall('/users/logout', { method: 'GET' });
+  },
 };
 
 export const userAPI = {

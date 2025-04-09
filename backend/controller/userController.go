@@ -23,15 +23,13 @@ func NewUserController() *UserController {
 
 func (uc *UserController) RegisterUser(c *gin.Context) {
 	var body struct {
-		Name        string `json:"name" binding:"required"`
-		Surname     string `json:"surname" binding:"required"`
-		Email       string `json:"email" binding:"required,email"`
-		Password    string `json:"password" binding:"required,min=6"`
-		Role        string `json:"role" binding:"required,oneof=admin user"`
-		CompanyName string `json:"company_name" binding:"required"`
+		Name     string `json:"name" binding:"required"`
+		Surname  string `json:"surname" binding:"required"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
 	}
 
-	logger.Log.Debugln("RegisterUser endpoint called") // Debug: Entry point
+	logger.Log.Debugln("RegisterUser endpoint called")
 
 	if err := c.ShouldBindJSON(&body); err != nil {
 		logger.Log.Errorln("Invalid registration request", err)
@@ -39,7 +37,7 @@ func (uc *UserController) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	logger.Log.Debugf("RegisterUser request body: %+v", body) // Debug: Log request body (excluding password)
+	logger.Log.Debugf("RegisterUser request body: %+v", body)
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -55,25 +53,27 @@ func (uc *UserController) RegisterUser(c *gin.Context) {
 		return
 	}
 	if exists {
-		logger.Log.Infoln("Registration attempted with existing email:", body.Email) // Info: User feedback
+		logger.Log.Infoln("Registration attempted with existing email:", body.Email)
 		c.JSON(http.StatusConflict, gin.H{"error": "This email already in use"})
 		return
 	}
 
-	companyID, err := uc.UserService.GetOrCreateCompany(body.CompanyName)
+	// Get or create default company for users
+	defaultCompanyName := "Default Company"
+	companyID, err := uc.UserService.GetOrCreateCompany(defaultCompanyName)
 	if err != nil {
-		logger.Log.Errorln("Company creation or retrieval failed", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Company creation failed: " + err.Error()})
+		logger.Log.Errorln("Default company creation or retrieval failed", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Default company creation failed: " + err.Error()})
 		return
 	}
-	logger.Log.Debugf("Company ID for %s: %s", body.CompanyName, companyID)
+	logger.Log.Debugf("Using default company ID: %s", companyID)
 
 	user := models.User{
 		Name:      body.Name,
 		Surname:   body.Surname,
 		Email:     body.Email,
 		Password:  string(hashedPassword),
-		Role:      body.Role,
+		Role:      "user",
 		CompanyID: companyID,
 	}
 
@@ -84,47 +84,161 @@ func (uc *UserController) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	logger.Log.Infoln("User registered successfully:", user.Email) // Info: Success
+	logger.Log.Infoln("User registered successfully:", user.Email)
 
 	c.JSON(http.StatusCreated, gin.H{
 		"message": "User created successfully",
 		"user": gin.H{
-			"id":           user.ID,
-			"name":         user.Name,
-			"surname":      user.Surname,
-			"email":        user.Email,
-			"role":         user.Role,
-			"company_id":   user.CompanyID,
-			"company_name": body.CompanyName,
-		},
-	})
-}
-
-func (uc *UserController) GetUserProfile(c *gin.Context) {
-	logger.Log.Debugln("GetUserProfile endpoint called") // Debug: Entry point
-
-	requestedUserID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		logger.Log.Warnln("Invalid user ID provided:", c.Param("id")) // Warn: Invalid input
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-	logger.Log.Debugf("Requested user ID: %s", requestedUserID)
-
-	user, err := uc.UserService.GetUserByID(requestedUserID)
-	if err != nil {
-		logger.Log.Infoln("User not found with ID:", requestedUserID) // Info: Not an error, but user not found.
-		c.JSON(http.StatusNotFound, gin.H{"error": "User couldn't find"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"user": map[string]interface{}{
 			"id":         user.ID,
+			"name":       user.Name,
+			"surname":    user.Surname,
 			"email":      user.Email,
 			"role":       user.Role,
 			"company_id": user.CompanyID,
 		},
+	})
+}
+
+func (uc *UserController) CreateCompany(c *gin.Context) {
+	logger.Log.Debugln("CreateCompany endpoint called")
+
+	// Safely get user ID from context
+	userID, exists := c.Get("userID")
+	if !exists {
+		logger.Log.Errorln("User ID not found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	userIDUUID, ok := userID.(uuid.UUID)
+	if !ok {
+		logger.Log.Errorln("Invalid user ID format in context")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	logger.Log.Debugf("User ID: %s attempting to create company", userIDUUID)
+
+	var body struct {
+		CompanyName string `json:"company_name" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&body); err != nil {
+		logger.Log.Errorln("Invalid company creation request", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	logger.Log.Debugf("Company creation request body: %+v", body)
+
+	exists, err := uc.UserService.CompanyExistsByName(body.CompanyName)
+	if err != nil {
+		logger.Log.Errorln("Company existence check failed", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Company check failed: " + err.Error()})
+		return
+	}
+
+	if exists {
+		logger.Log.Infoln("Company creation attempted with existing name:", body.CompanyName)
+		c.JSON(http.StatusConflict, gin.H{"error": "Company with this name already exists"})
+		return
+	}
+
+	companyID, err := uc.UserService.CreateCompany(body.CompanyName)
+	if err != nil {
+		logger.Log.Errorln("Company creation failed", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Company creation failed: " + err.Error()})
+		return
+	}
+
+	logger.Log.Infoln("Company created successfully:", body.CompanyName, "with ID:", companyID)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Company created successfully",
+		"company": gin.H{
+			"id":   companyID,
+			"name": body.CompanyName,
+		},
+	})
+}
+
+func (uc *UserController) AddUserToCompany(c *gin.Context) {
+	logger.Log.Debugln("AddUserToCompany endpoint called")
+
+	// Safely get user ID from context
+	userID, exists := c.Get("userID")
+	if !exists {
+		logger.Log.Errorln("User ID not found in context")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication required"})
+		return
+	}
+
+	adminID, ok := userID.(uuid.UUID)
+	if !ok {
+		logger.Log.Errorln("Invalid user ID format in context")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Invalid user ID format"})
+		return
+	}
+
+	logger.Log.Debugf("User ID: %s attempting to add user to company", adminID)
+
+	var body struct {
+		Email       string `json:"email" binding:"required,email"`
+		CompanyName string `json:"company_name" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&body); err != nil {
+		logger.Log.Errorln("Invalid add user to company request", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		return
+	}
+
+	logger.Log.Debugf("Add user to company request body: %+v", body)
+
+	user, err := uc.UserService.GetUserByEmail(body.Email)
+	if err != nil {
+		logger.Log.Errorln("User not found:", body.Email, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found with the provided email"})
+		return
+	}
+
+	// Check if company exists by name
+	exists, err = uc.UserService.CompanyExistsByName(body.CompanyName)
+	if err != nil {
+		logger.Log.Errorln("Company check failed", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Company check failed: " + err.Error()})
+		return
+	}
+
+	if !exists {
+		logger.Log.Errorln("Company not found:", body.CompanyName)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Company not found with the provided name"})
+		return
+	}
+
+	// Get company ID by name
+	companyID, err := uc.UserService.GetCompanyIDByName(body.CompanyName)
+	if err != nil {
+		logger.Log.Errorln("Failed to get company ID", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get company ID: " + err.Error()})
+		return
+	}
+
+	if err := uc.UserService.UpdateUserCompany(user.ID, companyID); err != nil {
+		logger.Log.Errorln("Failed to add user to company", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add user to company: " + err.Error()})
+		return
+	}
+
+	logger.Log.Infoln("User", user.Email, "successfully added to company", body.CompanyName)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "User successfully added to company",
+		"user": gin.H{
+			"id":    user.ID,
+			"email": user.Email,
+		},
+		"company_name": body.CompanyName,
 	})
 }
 
@@ -148,7 +262,7 @@ func (uc *UserController) GetMyProfile(c *gin.Context) {
 
 	user, err := uc.UserService.GetUserByID(userIDUUID)
 	if err != nil {
-		logger.Log.Infoln("User not found for current user:", userIDUUID)  // Info:  Not an error, user not found.
+		logger.Log.Infoln("User not found for current user:", userIDUUID) // Info:  Not an error, user not found.
 		c.JSON(http.StatusNotFound, gin.H{"error": "User couldn't find"})
 		return
 	}
@@ -201,7 +315,7 @@ func (uc *UserController) UpdateProfile(c *gin.Context) {
 func (uc *UserController) UpdateScannerSetting(c *gin.Context) {
 	logger.Log.Debugln("UpdateScannerSetting endpoint called") // Debug: Entry point
 	userID := c.MustGet("userID").(uuid.UUID)
-    logger.Log.Debugf("Updating scanner settings for user ID: %s", userID)
+	logger.Log.Debugf("Updating scanner settings for user ID: %s", userID)
 
 	var body struct {
 		Scanner     string `json:"scanner" binding:"required,oneof=acunetix semgrep zap"`
@@ -215,7 +329,7 @@ func (uc *UserController) UpdateScannerSetting(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
 		return
 	}
-    logger.Log.Debugf("UpdateScannerSetting request body: %+v", body)
+	logger.Log.Debugf("UpdateScannerSetting request body: %+v", body)
 
 	user, err := uc.UserService.GetUserByID(userID)
 	if err != nil {
@@ -244,9 +358,9 @@ func (uc *UserController) UpdateScannerSetting(c *gin.Context) {
 }
 
 func (uc *UserController) GetScannerSetting(c *gin.Context) {
-	logger.Log.Debugln("GetScannerSetting endpoint called")  // Debug: Entry Point
+	logger.Log.Debugln("GetScannerSetting endpoint called") // Debug: Entry Point
 	userID := c.MustGet("userID").(uuid.UUID)
-    logger.Log.Debugf("Retrieving scanner settings for user ID: %s", userID)
+	logger.Log.Debugf("Retrieving scanner settings for user ID: %s", userID)
 
 	scannerSetting, err := uc.UserService.GetScannerSetting(userID)
 	if err != nil {

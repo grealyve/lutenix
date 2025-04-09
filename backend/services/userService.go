@@ -130,3 +130,66 @@ func (us *UserService) GetScannerSetting(userID uuid.UUID) (*models.ScannerSetti
 
 	return &scannerSetting, nil
 }
+
+func (us *UserService) CompanyExistsByName(companyName string) (bool, error) {
+	var count int64
+	err := database.DB.Model(&models.Company{}).Where("name = ?", companyName).Count(&count).Error
+	if err != nil {
+		logger.Log.Errorf("Error during company name check: %v", err)
+	}
+	return count > 0, err
+}
+
+func (us *UserService) CompanyExistsByID(companyID uuid.UUID) (bool, error) {
+	var count int64
+	err := database.DB.Model(&models.Company{}).Where("id = ?", companyID).Count(&count).Error
+	if err != nil {
+		logger.Log.Errorf("Error during company ID check: %v", err)
+	}
+	return count > 0, err
+}
+
+func (us *UserService) CreateCompany(companyName string) (uuid.UUID, error) {
+	company := models.Company{
+		Name: companyName,
+	}
+
+	if err := database.DB.Create(&company).Error; err != nil {
+		logger.Log.Errorf("Error during company creation: %v", err)
+		return uuid.Nil, err
+	}
+
+	return company.ID, nil
+}
+
+func (us *UserService) GetUserByEmail(email string) (*models.User, error) {
+	var user models.User
+	if err := database.DB.Where("email = ?", email).First(&user).Error; err != nil {
+		logger.Log.Errorf("Error retrieving user by email: %v", err)
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (us *UserService) UpdateUserCompany(userID uuid.UUID, companyID uuid.UUID) error {
+	result := database.DB.Model(&models.User{}).Where("id = ?", userID).Update("company_id", companyID)
+	if result.Error != nil {
+		logger.Log.Errorf("Error updating user company: %v", result.Error)
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		logger.Log.Warnf("No user was updated with ID: %s", userID)
+	}
+
+	return nil
+}
+
+func (us *UserService) GetCompanyIDByName(companyName string) (uuid.UUID, error) {
+	var company models.Company
+	if err := database.DB.Where("name = ?", companyName).First(&company).Error; err != nil {
+		logger.Log.Errorf("Error retrieving company by name: %v", err)
+		return uuid.Nil, err
+	}
+	return company.ID, nil
+}

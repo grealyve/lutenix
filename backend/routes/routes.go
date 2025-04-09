@@ -26,10 +26,11 @@ func AcunetixRoutes(acunetixRoutes *gin.Engine) {
 }
 
 func AdminRoutes(adminRoutes *gin.Engine) {
-	v1 := adminRoutes.Group("/api/v1/admin")
-	v1.POST("/register", userController.RegisterUser)
-	v1.DELETE("/deleteUser", middlewares.Authentication(), middlewares.Authorization("user", "delete"), userController.RegisterUser)
-
+	admin := adminRoutes.Group("/api/v1/admin")
+	admin.POST("/register", userController.RegisterUser)
+	admin.DELETE("/deleteUser", middlewares.Authentication(), middlewares.Authorization("user", "delete"), userController.RegisterUser)
+	admin.POST("/createCompany", middlewares.Authentication(), middlewares.Authorization("user", "create"), userController.CreateCompany)
+	admin.POST("/addCompanyUser", middlewares.Authentication(), middlewares.Authorization("user", "update"), userController.AddUserToCompany)
 }
 
 func SemgrepRoutes(semgrepRoutes *gin.Engine) {

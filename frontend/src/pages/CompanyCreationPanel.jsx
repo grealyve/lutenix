@@ -13,18 +13,19 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
 const CompanyCreationPanel = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   
+  // States
   const [formData, setFormData] = useState({
     name: '',
+    surname: '',
     email: '',
     password: ''
   });
   const [loading, setLoading] = useState(false);
   const [alert, setAlert] = useState({ show: false, variant: '', message: '' });
   
-  // Check if user is admin
   useEffect(() => {
     if (user && user.role !== 'admin') {
       navigate('/');
@@ -41,7 +42,11 @@ const CompanyCreationPanel = () => {
 
   const validateForm = () => {
     if (!formData.name.trim()) {
-      showAlertMessage('danger', 'Company name is required');
+      showAlertMessage('danger', 'Name is required');
+      return false;
+    }
+    if (!formData.surname.trim()) {
+      showAlertMessage('danger', 'Surname is required');
       return false;
     }
     if (!formData.email.trim()) {
@@ -59,15 +64,10 @@ const CompanyCreationPanel = () => {
       return false;
     }
     
-    if (formData.password.length < 8) {
-      showAlertMessage('danger', 'Password must be at least 8 characters long');
-      return false;
-    }
-    
     return true;
   };
 
-  const handleCreateCompany = async (e) => {
+  const handleCreateUser = async (e) => {
     e.preventDefault();
     
     if (!validateForm()) return;
@@ -75,18 +75,32 @@ const CompanyCreationPanel = () => {
     setLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await fetch('http://localhost:4040/api/v1/admin/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
       
-      showAlertMessage('success', `Company "${formData.name}" created successfully`);
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to create user');
+      }
+      
+      showAlertMessage('success', `User "${formData.name} ${formData.surname}" created successfully`);
       
       setFormData({
         name: '',
+        surname: '',
         email: '',
         password: ''
       });
     } catch (error) {
-      console.error('Error creating company:', error);
-      showAlertMessage('danger', 'Failed to create company. Please try again.');
+      console.error('Error creating user:', error);
+      showAlertMessage('danger', error.message || 'Failed to create user. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -110,7 +124,7 @@ const CompanyCreationPanel = () => {
     <div className="page-content admin-panel">
       <Container fluid>
         <div className="admin-panel-header text-center">
-          <h1 className="mb-0">Company Creation Panel</h1>
+          <h1 className="mb-0">User Creation Panel</h1>
         </div>
         
         {/* Alert */}
@@ -128,7 +142,7 @@ const CompanyCreationPanel = () => {
           <Col md={8} lg={6} xl={5}>
             <Card className="border-0 shadow-sm company-creation-card">
               <Card.Body className="p-4 p-md-5 company-creation-form">
-                <Form onSubmit={handleCreateCompany}>
+                <Form onSubmit={handleCreateUser}>
                   <Form.Group className="mb-4">
                     <Form.Label className="fw-bold">Name</Form.Label>
                     <Form.Control
@@ -136,20 +150,33 @@ const CompanyCreationPanel = () => {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      placeholder="Enter company name"
+                      placeholder="Enter user's name"
+                      className="form-control-lg"
+                      disabled={loading}
+                    />
+                  </Form.Group>
+
+                  <Form.Group className="mb-4">
+                    <Form.Label className="fw-bold">Surname</Form.Label>
+                    <Form.Control
+                      type="text"
+                      name="surname"
+                      value={formData.surname}
+                      onChange={handleInputChange}
+                      placeholder="Enter user's surname"
                       className="form-control-lg"
                       disabled={loading}
                     />
                   </Form.Group>
                   
                   <Form.Group className="mb-4">
-                    <Form.Label className="fw-bold">Mail Address</Form.Label>
+                    <Form.Label className="fw-bold">Email Address</Form.Label>
                     <Form.Control
                       type="email"
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      placeholder="Enter email address"
+                      placeholder="Enter user's email address"
                       className="form-control-lg"
                       disabled={loading}
                     />
@@ -162,7 +189,7 @@ const CompanyCreationPanel = () => {
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      placeholder="Enter password"
+                      placeholder="Enter user's password"
                       className="form-control-lg"
                       disabled={loading}
                     />
