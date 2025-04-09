@@ -93,6 +93,14 @@ const NavbarComponent = () => {
             <Collapse in={expandedTool === 'semgrep'}>
               <div>
                 <Nav className="flex-column ps-4">
+                <Nav.Link 
+                    as={Link} 
+                    to="/semgrep/deployments"
+                    className={`py-2 ${isSubPathActive('/semgrep/deployments') ? 'active' : ''}`}
+                  >
+                    <i className="bi bi-layers me-2"></i>
+                    Deployments
+                  </Nav.Link>
                   <Nav.Link 
                     as={Link} 
                     to="/semgrep/scans"
@@ -108,22 +116,6 @@ const NavbarComponent = () => {
                   >
                     <i className="bi bi-exclamation-triangle me-2"></i>
                     Findings
-                  </Nav.Link>
-                  <Nav.Link 
-                    as={Link} 
-                    to="/semgrep/reports"
-                    className={`py-2 ${isSubPathActive('/semgrep/reports') ? 'active' : ''}`}
-                  >
-                    <i className="bi bi-file-earmark-text me-2"></i>
-                    Reports
-                  </Nav.Link>
-                  <Nav.Link 
-                    as={Link} 
-                    to="/semgrep/generate-report"
-                    className={`py-2 ${isSubPathActive('/semgrep/generate-report') ? 'active' : ''}`}
-                  >
-                    <i className="bi bi-file-earmark-plus me-2"></i>
-                    Generate Report
                   </Nav.Link>
                 </Nav>
               </div>

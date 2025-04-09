@@ -13,8 +13,7 @@ import Home from './pages/Home';
 
 import SemgrepScans from './pages/semgrep/Scans';
 import SemgrepFindings from './pages/semgrep/Findings';
-import SemgrepReports from './pages/semgrep/Reports';
-import SemgrepGenerateReport from './pages/semgrep/GenerateReport';
+import SemgrepDeployments from './pages/semgrep/Deployments';
 
 import OwaspZapScans from './pages/owasp-zap/Scans';
 import OwaspZapFindings from './pages/owasp-zap/Findings';
@@ -49,11 +48,10 @@ function App() {
               
               {/* Semgrep Routes */}
               <Route path="semgrep">
-                <Route index element={<Navigate to="/semgrep/scans" replace />} />
+                <Route index element={<Navigate to="scans" replace />} />
                 <Route path="scans" element={<SemgrepScans />} />
                 <Route path="findings" element={<SemgrepFindings />} />
-                <Route path="reports" element={<SemgrepReports />} />
-                <Route path="generate-report" element={<SemgrepGenerateReport />} />
+                <Route path="deployments" element={<SemgrepDeployments />} />
               </Route>
               
               {/* OWASP ZAP Routes */}
