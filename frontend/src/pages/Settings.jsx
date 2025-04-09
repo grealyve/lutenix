@@ -9,17 +9,16 @@ const Settings = () => {
   const [alertInfo, setAlertInfo] = useState({ show: false, variant: '', message: '' });
   
   // Form states
-  const [companyName, setCompanyName] = useState('Lutenix');
-  const [acunetixPort, setAcunetixPort] = useState('3443');
-  const [zapPort, setZapPort] = useState('8080');
-  const [semgrepApiKey, setSemgrepApiKey] = useState('');
-  const [acunetixApiKey, setAcunetixApiKey] = useState('');
-  const [zapApiKey, setZapApiKey] = useState('');
+  const [scanner, setScanner] = useState('zap');
+  const [scannerUrl, setScannerUrl] = useState('https://localhost');
+  const [scannerPort, setScannerPort] = useState('');
+  const [apiKey, setApiKey] = useState('');
 
   useEffect(() => {
     const fetchSettings = async () => {
       try {
         setIsLoading(true);
+        // Fetch settings implementation would go here
         setIsLoading(false);
       } catch (error) {
         console.error("Error fetching settings:", error);
@@ -27,6 +26,8 @@ const Settings = () => {
       }
     };
     
+    // Uncomment to fetch settings on component mount
+    // fetchSettings();
   }, []);
 
   const handleSubmit = async (e) => {
@@ -35,39 +36,22 @@ const Settings = () => {
     setAlertInfo({ show: false, variant: '', message: '' });
 
     try {
-      await apiCall('/users/updateScanner', {
-        method: 'POST',
-        body: JSON.stringify({
-          api_key: zapApiKey,
-          scanner: 'zap',
-          scanner_url: 'https://localhost',
-          scanner_port: parseInt(zapPort)
-        })
-      });
+      const requestBody = {
+        api_key: apiKey,
+        scanner: scanner,
+        scanner_url: scannerUrl,
+        scanner_port: scannerPort ? parseInt(scannerPort) : undefined
+      };
 
       await apiCall('/users/updateScanner', {
         method: 'POST',
-        body: JSON.stringify({
-          api_key: acunetixApiKey,
-          scanner: 'acunetix',
-          scanner_url: 'https://localhost',
-          scanner_port: parseInt(acunetixPort)
-        })
-      });
-
-      await apiCall('/users/updateScanner', {
-        method: 'POST',
-        body: JSON.stringify({
-          api_key: semgrepApiKey,
-          scanner: 'semgrep',
-          scanner_url: 'https://localhost'
-        })
+        body: JSON.stringify(requestBody)
       });
 
       setAlertInfo({
         show: true,
         variant: 'success',
-        message: 'Settings updated successfully!'
+        message: 'Scanner settings updated successfully!'
       });
     } catch (error) {
       console.error("Error updating settings:", error);
@@ -84,7 +68,7 @@ const Settings = () => {
   return (
     <div className="page-content">
       <Container fluid>
-        <h1 className="mb-4">Company Settings</h1>
+        <h1 className="mb-4">Scanner Settings</h1>
         
         {alertInfo.show && (
           <Alert variant={alertInfo.variant} dismissible onClose={() => setAlertInfo({ ...alertInfo, show: false })}>
@@ -98,69 +82,53 @@ const Settings = () => {
               <Row>
                 <Col xs={12}>
                   <Form.Group className="mb-4">
-                    <Form.Label>Company Name</Form.Label>
+                    <Form.Label>Scanner</Form.Label>
+                    <Form.Select
+                      value={scanner}
+                      onChange={(e) => setScanner(e.target.value)}
+                    >
+                      <option value="zap">ZAP</option>
+                      <option value="acunetix">Acunetix</option>
+                      <option value="semgrep">Semgrep</option>
+                    </Form.Select>
+                  </Form.Group>
+                </Col>
+
+                <Col xs={12} md={6}>
+                  <Form.Group className="mb-4">
+                    <Form.Label>Scanner URL</Form.Label>
                     <Form.Control 
                       type="text" 
-                      value={companyName}
-                      onChange={(e) => setCompanyName(e.target.value)}
+                      value={scannerUrl}
+                      onChange={(e) => setScannerUrl(e.target.value)}
+                      placeholder="Enter Scanner URL"
                     />
                   </Form.Group>
                 </Col>
 
                 <Col xs={12} md={6}>
                   <Form.Group className="mb-4">
-                    <Form.Label>Acunetix Port</Form.Label>
+                    <Form.Label>Scanner Port</Form.Label>
                     <Form.Control 
                       type="text" 
-                      value={acunetixPort}
-                      onChange={(e) => setAcunetixPort(e.target.value)}
+                      value={scannerPort}
+                      onChange={(e) => setScannerPort(e.target.value)}
+                      placeholder="Enter Scanner Port"
                     />
-                  </Form.Group>
-                </Col>
-
-                <Col xs={12} md={6}>
-                  <Form.Group className="mb-4">
-                    <Form.Label>ZAP Port</Form.Label>
-                    <Form.Control 
-                      type="text" 
-                      value={zapPort}
-                      onChange={(e) => setZapPort(e.target.value)}
-                    />
+                    <Form.Text className="text-muted">
+                      Leave empty for Semgrep
+                    </Form.Text>
                   </Form.Group>
                 </Col>
 
                 <Col xs={12}>
                   <Form.Group className="mb-4">
-                    <Form.Label>Semgrep API Key</Form.Label>
+                    <Form.Label>API Key</Form.Label>
                     <Form.Control 
                       type="password" 
-                      value={semgrepApiKey}
-                      onChange={(e) => setSemgrepApiKey(e.target.value)}
-                      placeholder="Enter Semgrep API Key"
-                    />
-                  </Form.Group>
-                </Col>
-
-                <Col xs={12}>
-                  <Form.Group className="mb-4">
-                    <Form.Label>Acunetix API Key</Form.Label>
-                    <Form.Control 
-                      type="password" 
-                      value={acunetixApiKey}
-                      onChange={(e) => setAcunetixApiKey(e.target.value)}
-                      placeholder="Enter Acunetix API Key"
-                    />
-                  </Form.Group>
-                </Col>
-
-                <Col xs={12}>
-                  <Form.Group className="mb-4">
-                    <Form.Label>ZAP API Key</Form.Label>
-                    <Form.Control 
-                      type="password" 
-                      value={zapApiKey}
-                      onChange={(e) => setZapApiKey(e.target.value)}
-                      placeholder="Enter ZAP API Key"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="Enter API Key"
                     />
                   </Form.Group>
                 </Col>
@@ -184,4 +152,4 @@ const Settings = () => {
   );
 };
 
-export default Settings; 
+export default Settings;
