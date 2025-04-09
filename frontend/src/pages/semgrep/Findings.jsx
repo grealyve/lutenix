@@ -1,233 +1,181 @@
 import { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Form, InputGroup, Table, Badge, Button, Pagination, Dropdown, OverlayTrigger, Tooltip } from 'react-bootstrap';
-import { FaSearch, FaFilter, FaExclamationTriangle, FaInfoCircle, FaEye, FaTrash, FaFileDownload } from 'react-icons/fa';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+import { Container, Row, Col, Card, Form, InputGroup, Table, Badge, Button, Pagination, Dropdown, OverlayTrigger, Tooltip, Alert, Spinner } from 'react-bootstrap';
+import { FaSearch, FaFilter, FaExclamationTriangle, FaInfoCircle, FaEye, FaTrash, FaFileDownload, FaExternalLinkAlt, FaChevronRight } from 'react-icons/fa';
+import { semgrepAPI } from '../../utils/api';
 
 const SemgrepFindings = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  const [deployments, setDeployments] = useState([]);
+  const [selectedDeployment, setSelectedDeployment] = useState(null);
+  const [loadingDeployments, setLoadingDeployments] = useState(false);
+  const [deploymentError, setDeploymentError] = useState(null);
+
   const [findings, setFindings] = useState([]);
   const [filteredFindings, setFilteredFindings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedFindings, setSelectedFindings] = useState([]);
-  
+
   const itemsPerPage = 10;
-  
-  // Severity levels and their corresponding colors
+
   const severityMap = {
-    Critical: { color: 'danger', icon: <FaExclamationTriangle /> },
-    High: { color: 'danger', icon: <FaExclamationTriangle /> },
-    Medium: { color: 'warning', icon: <FaExclamationTriangle /> },
-    Low: { color: 'info', icon: <FaInfoCircle /> },
-    Information: { color: 'secondary', icon: <FaInfoCircle /> }
+    critical: { display: 'Critical', color: 'danger', icon: <FaExclamationTriangle /> },
+    high: { display: 'High', color: 'danger', icon: <FaExclamationTriangle /> },
+    medium: { display: 'Medium', color: 'warning', icon: <FaExclamationTriangle /> },
+    low: { display: 'Low', color: 'info', icon: <FaInfoCircle /> },
+    info: { display: 'Info', color: 'secondary', icon: <FaInfoCircle /> },
+    unknown: { display: 'Unknown', color: 'light', icon: <FaInfoCircle /> }
   };
-  
-  // Summary data for each severity level
+
   const [summary, setSummary] = useState({
-    Critical: 0,
-    High: 0,
-    Medium: 0,
-    Low: 0,
-    Information: 0
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    info: 0,
+    unknown: 0
   });
 
-  // Fetch findings data
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchDeployments = async () => {
       try {
-        setLoading(true);
-        // Mock data - in a real app, this would be an API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        setLoadingDeployments(true);
+        setDeploymentError(null);
         
-        const mockData = [
-          {
-            id: 1,
-            title: 'SQL Injection Vulnerability',
-            severity: 'Critical',
-            target: 'https://api.example.com/users',
-            location: 'app/controllers/users_controller.rb:45',
-            description: 'User input is directly used in SQL query without proper sanitization',
-            status: 'Open',
-            date: '2023-04-15'
-          },
-          {
-            id: 2,
-            title: 'Cross-Site Scripting (XSS)',
-            severity: 'High',
-            target: 'https://example.com/profile',
-            location: 'src/components/Profile.jsx:78',
-            description: 'User input is rendered without proper escaping',
-            status: 'Open',
-            date: '2023-04-16'
-          },
-          {
-            id: 3,
-            title: 'Hardcoded API Key',
-            severity: 'Medium',
-            target: 'Internal',
-            location: 'src/services/api.js:12',
-            description: 'API key is hardcoded in the source code',
-            status: 'Fixed',
-            date: '2023-04-10'
-          },
-          {
-            id: 4,
-            title: 'Insecure Direct Object Reference',
-            severity: 'High',
-            target: 'https://example.com/documents',
-            location: 'app/controllers/documents_controller.rb:23',
-            description: 'User can access documents by manipulating the ID parameter',
-            status: 'Open',
-            date: '2023-04-14'
-          },
-          {
-            id: 5,
-            title: 'Missing Content Security Policy',
-            severity: 'Medium',
-            target: 'https://example.com',
-            location: 'config/headers.js',
-            description: 'Content Security Policy headers are not set',
-            status: 'Open',
-            date: '2023-04-12'
-          },
-          {
-            id: 6,
-            title: 'Outdated NPM Package',
-            severity: 'Low',
-            target: 'Internal',
-            location: 'package.json',
-            description: 'Several NPM packages are outdated with known vulnerabilities',
-            status: 'Fixed',
-            date: '2023-04-05'
-          },
-          {
-            id: 7,
-            title: 'Insecure Deserialization',
-            severity: 'Critical',
-            target: 'https://api.example.com/data',
-            location: 'app/services/parser.rb:34',
-            description: 'User controlled data is deserialized without validation',
-            status: 'Open',
-            date: '2023-04-17'
-          },
-          {
-            id: 8,
-            title: 'Weak Password Policy',
-            severity: 'Medium',
-            target: 'https://example.com/signup',
-            location: 'app/models/user.rb:56',
-            description: 'Password policy allows easily guessable passwords',
-            status: 'Open',
-            date: '2023-04-11'
-          },
-          {
-            id: 9,
-            title: 'Information Disclosure',
-            severity: 'Information',
-            target: 'https://example.com/about',
-            location: 'app/views/about.html.erb',
-            description: 'Version information is disclosed in page source',
-            status: 'Fixed',
-            date: '2023-04-08'
-          },
-          {
-            id: 10,
-            title: 'CORS Misconfiguration',
-            severity: 'Medium',
-            target: 'https://api.example.com',
-            location: 'config/cors.rb:8',
-            description: 'CORS policy is too permissive',
-            status: 'Open',
-            date: '2023-04-13'
-          },
-          {
-            id: 11,
-            title: 'Missing Rate Limiting',
-            severity: 'Low',
-            target: 'https://api.example.com/login',
-            location: 'app/controllers/sessions_controller.rb',
-            description: 'No rate limiting on authentication endpoints',
-            status: 'Open',
-            date: '2023-04-09'
-          },
-          {
-            id: 12,
-            title: 'Insecure File Upload',
-            severity: 'High',
-            target: 'https://example.com/upload',
-            location: 'app/controllers/uploads_controller.rb:25',
-            description: 'Uploaded files are not properly validated',
-            status: 'Fixed',
-            date: '2023-04-07'
+        const response = await semgrepAPI.getDeployments();
+        
+        if (!response || !Array.isArray(response.data)) {
+          console.error("Invalid API response structure for deployments:", response);
+          throw new Error("Received invalid data format from deployments API.");
+        }
+        
+        setDeployments(response.data);
+        
+        const params = new URLSearchParams(location.search);
+        const slugFromQuery = params.get('deployment_slug');
+        
+        if (slugFromQuery) {
+          const matchingDeployment = response.data.find(dep => dep.slug === slugFromQuery);
+          if (matchingDeployment) {
+            setSelectedDeployment(matchingDeployment);
+          } else {
+            setDeploymentError(`Deployment with slug "${slugFromQuery}" not found.`);
           }
-        ];
+        }
         
-        setFindings(mockData);
-        
-        // Calculate summary
-        const summaryData = mockData.reduce((acc, finding) => {
-          acc[finding.severity] = (acc[finding.severity] || 0) + 1;
-          return acc;
-        }, {
-          Critical: 0,
-          High: 0,
-          Medium: 0,
-          Low: 0,
-          Information: 0
-        });
-        
-        setSummary(summaryData);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching findings:', error);
-        setLoading(false);
+        setLoadingDeployments(false);
+      } catch (err) {
+        console.error('Error fetching deployments:', err);
+        setDeploymentError(err.message || 'Failed to fetch deployments.');
+        setLoadingDeployments(false);
       }
     };
     
-    fetchData();
-  }, []);
-  
-  // Apply filters and search
+    fetchDeployments();
+  }, [location.search]);
+
+  useEffect(() => {
+    if (!selectedDeployment) {
+      setLoading(false);
+      return;
+    }
+    
+    const fetchFindings = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log(`Fetching findings for slug: ${selectedDeployment.slug}`);
+        const response = await semgrepAPI.getFindingsByDeployment(selectedDeployment.slug);
+
+        if (!response || !Array.isArray(response.data)) {
+          console.error("Invalid API response structure for findings:", response);
+          throw new Error("Received invalid data format from findings API.");
+        }
+
+        const mappedData = response.data.map(finding => ({
+          id: finding.id,
+          vulnerabilityName: finding.vulnerability_name,
+          severity: finding.risk?.toLowerCase() || 'unknown',
+          targetUrl: finding.url,
+          location: finding.location,
+          date: finding.created_at,
+          scanId: finding.scan_id
+        }));
+
+        setFindings(mappedData);
+
+        const summaryData = mappedData.reduce((acc, finding) => {
+          const severityKey = finding.severity;
+          acc[severityKey] = (acc[severityKey] || 0) + 1;
+          return acc;
+        }, { critical: 0, high: 0, medium: 0, low: 0, info: 0, unknown: 0 });
+
+        setSummary(summaryData);
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching findings:', err);
+        setError(err.message || `Failed to fetch findings for ${selectedDeployment.slug}.`);
+        setLoading(false);
+        setFindings([]);
+        setFilteredFindings([]);
+      }
+    };
+
+    fetchFindings();
+  }, [selectedDeployment]);
+
   useEffect(() => {
     let results = findings;
-    
-    // Apply search term
+
     if (searchTerm) {
+      const lowerSearchTerm = searchTerm.toLowerCase();
       results = results.filter(finding =>
-        finding.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        finding.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        finding.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        finding.target.toLowerCase().includes(searchTerm.toLowerCase())
+        finding.vulnerabilityName.toLowerCase().includes(lowerSearchTerm) ||
+        finding.location.toLowerCase().includes(lowerSearchTerm) ||
+        (finding.targetUrl && finding.targetUrl.toLowerCase().includes(lowerSearchTerm))
       );
     }
-    
-    // Apply severity filter
+
     if (filterSeverity !== 'All') {
-      results = results.filter(finding => finding.severity === filterSeverity);
+      const lowerFilterSeverity = filterSeverity.toLowerCase();
+      results = results.filter(finding => finding.severity === lowerFilterSeverity);
     }
-    
-    // Apply status filter
-    if (filterStatus !== 'All') {
-      results = results.filter(finding => finding.status === filterStatus);
-    }
-    
+
     setFilteredFindings(results);
-    setCurrentPage(1); // Reset to first page when filters change
-  }, [findings, searchTerm, filterSeverity, filterStatus]);
-  
-  // Calculate pagination
+    setCurrentPage(1);
+  }, [findings, searchTerm, filterSeverity]);
+
+  const handleSelectDeployment = (deployment) => {
+    setSelectedDeployment(deployment);
+    navigate(`/semgrep/findings?deployment_slug=${deployment.slug}`);
+  };
+
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredFindings.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredFindings.length / itemsPerPage);
-  
-  // Handle pagination click
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-CA');
+    } catch (e) {
+      return dateString;
+    }
+  };
+
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
   };
-  
-  // Handle checkbox selection
+
   const toggleFindingSelection = (id) => {
     setSelectedFindings(prevSelected => {
       if (prevSelected.includes(id)) {
@@ -237,8 +185,7 @@ const SemgrepFindings = () => {
       }
     });
   };
-  
-  // Select all findings on current page
+
   const toggleSelectAll = (e) => {
     if (e.target.checked) {
       const currentIds = currentItems.map(item => item.id);
@@ -248,22 +195,46 @@ const SemgrepFindings = () => {
       setSelectedFindings(prev => prev.filter(id => !currentIds.includes(id)));
     }
   };
-  
-  // Generate pagination items
+
   const renderPaginationItems = () => {
     const items = [];
-    
-    // Previous button
+    const maxPagesToShow = 5;
+    let startPage, endPage;
+
+    if (totalPages <= maxPagesToShow) {
+      startPage = 1;
+      endPage = totalPages;
+    } else {
+      const maxPagesBeforeCurrent = Math.floor(maxPagesToShow / 2);
+      const maxPagesAfterCurrent = Math.ceil(maxPagesToShow / 2) - 1;
+      if (currentPage <= maxPagesBeforeCurrent) {
+        startPage = 1;
+        endPage = maxPagesToShow;
+      } else if (currentPage + maxPagesAfterCurrent >= totalPages) {
+        startPage = totalPages - maxPagesToShow + 1;
+        endPage = totalPages;
+      } else {
+        startPage = currentPage - maxPagesBeforeCurrent;
+        endPage = currentPage + maxPagesAfterCurrent;
+      }
+    }
+
     items.push(
-      <Pagination.Prev 
-        key="prev" 
-        onClick={() => handlePageChange(Math.max(1, currentPage - 1))} 
-        disabled={currentPage === 1} 
+      <Pagination.Prev
+        key="prev"
+        onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+        disabled={currentPage === 1 || totalPages === 0}
       />
     );
-    
-    // Page numbers
-    for (let number = 1; number <= Math.min(totalPages, 5); number++) {
+
+    if (startPage > 1) {
+      items.push(<Pagination.Item key={1} onClick={() => handlePageChange(1)}>{1}</Pagination.Item>);
+      if (startPage > 2) {
+        items.push(<Pagination.Ellipsis key="start-ellipsis" disabled />);
+      }
+    }
+
+    for (let number = startPage; number <= endPage; number++) {
       items.push(
         <Pagination.Item
           key={number}
@@ -274,276 +245,311 @@ const SemgrepFindings = () => {
         </Pagination.Item>
       );
     }
-    
-    // Ellipsis and last page
-    if (totalPages > 5) {
-      items.push(<Pagination.Ellipsis key="ellipsis" />);
-      items.push(
-        <Pagination.Item
-          key={totalPages}
-          active={totalPages === currentPage}
-          onClick={() => handlePageChange(totalPages)}
-        >
-          {totalPages}
-        </Pagination.Item>
-      );
+
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) {
+        items.push(<Pagination.Ellipsis key="end-ellipsis" disabled />);
+      }
+      items.push(<Pagination.Item key={totalPages} onClick={() => handlePageChange(totalPages)}>{totalPages}</Pagination.Item>);
     }
-    
-    // Next button
+
     items.push(
-      <Pagination.Next 
-        key="next" 
-        onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))} 
-        disabled={currentPage === totalPages || totalPages === 0} 
+      <Pagination.Next
+        key="next"
+        onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
+        disabled={currentPage === totalPages || totalPages === 0}
       />
     );
-    
+
     return items;
   };
-  
+
+  const renderDeploymentSelection = () => {
+    return (
+      <Card className="border-0 shadow-sm mb-4">
+        <Card.Body>
+          <h5 className="mb-3">Select a Deployment</h5>
+          
+          {loadingDeployments ? (
+            <div className="text-center py-4">
+              <Spinner animation="border" role="status" variant="primary">
+                <span className="visually-hidden">Loading deployments...</span>
+              </Spinner>
+            </div>
+          ) : deploymentError ? (
+            <Alert variant="danger">{deploymentError}</Alert>
+          ) : deployments.length === 0 ? (
+            <Alert variant="info">No deployments found.</Alert>
+          ) : (
+            <div className="list-group">
+              {deployments.map(deployment => (
+                <Button
+                  key={deployment.id}
+                  variant="outline-primary"
+                  className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center mb-2 ${selectedDeployment?.id === deployment.id ? 'active' : ''}`}
+                  onClick={() => handleSelectDeployment(deployment)}
+                >
+                  <div>
+                    <div className="fw-bold">{deployment.name}</div>
+                    <small className="text-muted">ID: {deployment.id}</small>
+                  </div>
+                  <FaChevronRight />
+                </Button>
+              ))}
+            </div>
+          )}
+        </Card.Body>
+      </Card>
+    );
+  };
+
   return (
     <div className="page-content">
       <Container fluid>
         <h1 className="mb-4">Semgrep Findings</h1>
         
-        {/* Summary cards */}
-        <Row className="mb-4">
-          <Col md={12} xl={3} className="mb-3 mb-xl-0">
-            <Card className="bg-danger text-white h-100">
-              <Card.Body className="d-flex align-items-center">
-                <div className="me-3">
-                  <FaExclamationTriangle size={30} />
-                </div>
-                <div>
-                  <h5 className="mb-0">Critical & High</h5>
-                  <h3 className="mb-0">{summary.Critical + summary.High}</h3>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col md={4} xl={3} className="mb-3 mb-xl-0">
-            <Card className="bg-warning text-dark h-100">
-              <Card.Body className="d-flex align-items-center">
-                <div className="me-3">
-                  <FaExclamationTriangle size={30} />
-                </div>
-                <div>
-                  <h5 className="mb-0">Medium</h5>
-                  <h3 className="mb-0">{summary.Medium}</h3>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col md={4} xl={3} className="mb-3 mb-xl-0">
-            <Card className="bg-info text-white h-100">
-              <Card.Body className="d-flex align-items-center">
-                <div className="me-3">
-                  <FaInfoCircle size={30} />
-                </div>
-                <div>
-                  <h5 className="mb-0">Low</h5>
-                  <h3 className="mb-0">{summary.Low}</h3>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col md={4} xl={3} className="mb-3 mb-xl-0">
-            <Card className="bg-secondary text-white h-100">
-              <Card.Body className="d-flex align-items-center">
-                <div className="me-3">
-                  <FaInfoCircle size={30} />
-                </div>
-                <div>
-                  <h5 className="mb-0">Information</h5>
-                  <h3 className="mb-0">{summary.Information}</h3>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
+        {/* Show deployment selection UI if no deployment is selected */}
+        {!location.search && renderDeploymentSelection()}
         
-        {/* Filters and Search */}
-        <Card className="mb-4 border-0 shadow-sm">
-          <Card.Body>
-            <Row>
-              <Col lg={4} md={6} className="mb-3 mb-md-0">
-                <InputGroup>
-                  <InputGroup.Text>
-                    <FaSearch />
-                  </InputGroup.Text>
-                  <Form.Control
-                    placeholder="Search findings..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </InputGroup>
+        {/* Show findings if a deployment is selected */}
+        {selectedDeployment && (
+          <>
+            <div className="d-flex flex-wrap justify-content-between align-items-center mb-4">
+              <h2 className="h4 mb-3 mb-md-0">
+                Deployment: <span className="text-primary">{selectedDeployment.name}</span>
+              </h2>
+              <Button 
+                variant="outline-secondary" 
+                size="sm"
+                onClick={() => {
+                  setSelectedDeployment(null);
+                  navigate('/semgrep/findings');
+                }}
+              >
+                Change Deployment
+              </Button>
+            </div>
+
+            {error && <Alert variant="danger" onClose={() => setError(null)} dismissible>{error}</Alert>}
+
+            {/* Summary cards */}
+            <Row className="mb-4">
+              <Col md={12} xl={3} className="mb-3 mb-xl-0">
+                <Card className={`bg-${severityMap['critical']?.color || 'secondary'} text-white h-100`}>
+                  <Card.Body className="d-flex align-items-center">
+                    <div className="me-3">{severityMap['critical']?.icon || <FaExclamationTriangle />}</div>
+                    <div>
+                      <h5 className="mb-0">Critical & High</h5>
+                      <h3 className="mb-0">{summary.critical + summary.high}</h3>
+                    </div>
+                  </Card.Body>
+                </Card>
               </Col>
-              <Col lg={8} md={6} className="d-flex justify-content-md-end">
-                <Dropdown className="me-2">
-                  <Dropdown.Toggle variant="light" id="severity-filter">
-                    <FaFilter className="me-2" />
-                    Severity: {filterSeverity}
-                  </Dropdown.Toggle>
-                  <Dropdown.Menu>
-                    <Dropdown.Item onClick={() => setFilterSeverity('All')}>All</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('Critical')}>Critical</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('High')}>High</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('Medium')}>Medium</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('Low')}>Low</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('Information')}>Information</Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown>
-                <Dropdown>
-                  <Dropdown.Toggle variant="light" id="status-filter">
-                    <FaFilter className="me-2" />
-                    Status: {filterStatus}
-                  </Dropdown.Toggle>
-                  <Dropdown.Menu>
-                    <Dropdown.Item onClick={() => setFilterStatus('All')}>All</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterStatus('Open')}>Open</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterStatus('Fixed')}>Fixed</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterStatus('In Progress')}>In Progress</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterStatus('Won\'t Fix')}>Won't Fix</Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown>
+              <Col md={4} xl={3} className="mb-3 mb-xl-0">
+                <Card className={`bg-${severityMap['medium']?.color || 'secondary'} text-dark h-100`}>
+                  <Card.Body className="d-flex align-items-center">
+                    <div className="me-3">{severityMap['medium']?.icon || <FaExclamationTriangle />}</div>
+                    <div>
+                      <h5 className="mb-0">Medium</h5>
+                      <h3 className="mb-0">{summary.medium}</h3>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+              <Col md={4} xl={3} className="mb-3 mb-xl-0">
+                <Card className={`bg-${severityMap['low']?.color || 'secondary'} text-white h-100`}>
+                  <Card.Body className="d-flex align-items-center">
+                    <div className="me-3">{severityMap['low']?.icon || <FaInfoCircle />}</div>
+                    <div>
+                      <h5 className="mb-0">Low</h5>
+                      <h3 className="mb-0">{summary.low}</h3>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+              <Col md={4} xl={3} className="mb-3 mb-xl-0">
+                <Card className={`bg-${severityMap['info']?.color || 'secondary'} text-white h-100`}>
+                  <Card.Body className="d-flex align-items-center">
+                    <div className="me-3">{severityMap['info']?.icon || <FaInfoCircle />}</div>
+                    <div>
+                      <h5 className="mb-0">Info / Unknown</h5>
+                      <h3 className="mb-0">{summary.info + summary.unknown}</h3>
+                    </div>
+                  </Card.Body>
+                </Card>
               </Col>
             </Row>
-          </Card.Body>
-        </Card>
-        
-        {/* Findings Table */}
-        <Card className="border-0 shadow-sm">
-          <Card.Body>
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <div>
-                <h5 className="mb-0">
-                  Total findings: {filteredFindings.length}
-                  {selectedFindings.length > 0 && ` (${selectedFindings.length} selected)`}
-                </h5>
-              </div>
-              <div>
-                {selectedFindings.length > 0 && (
-                  <>
-                    <Button variant="outline-danger" size="sm" className="me-2">
-                      <FaTrash className="me-1" /> Delete
-                    </Button>
-                    <Button variant="outline-primary" size="sm">
-                      <FaFileDownload className="me-1" /> Export
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-            
-            <div className="table-responsive">
-              <Table hover>
-                <thead className="table-light">
-                  <tr>
-                    <th style={{ width: '40px' }}>
-                      <Form.Check 
-                        type="checkbox" 
-                        onChange={toggleSelectAll} 
-                        checked={currentItems.length > 0 && currentItems.every(item => selectedFindings.includes(item.id))}
+
+            {/* Filters and Search */}
+            <Card className="mb-4 border-0 shadow-sm">
+              <Card.Body>
+                <Row>
+                  <Col lg={4} md={6} className="mb-3 mb-md-0">
+                    <InputGroup>
+                      <InputGroup.Text className="bg-light border-end-0"><FaSearch /></InputGroup.Text>
+                      <Form.Control
+                        placeholder="Search name, location, URL..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="border-start-0"
+                        disabled={loading}
                       />
-                    </th>
-                    <th style={{ width: '100px' }}>Severity</th>
-                    <th>Title & Location</th>
-                    <th>Target</th>
-                    <th style={{ width: '100px' }}>Status</th>
-                    <th style={{ width: '110px' }}>Date</th>
-                    <th style={{ width: '80px' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={7} className="text-center py-4">Loading...</td>
-                    </tr>
-                  ) : currentItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="text-center py-4">No findings match your filters</td>
-                    </tr>
-                  ) : (
-                    currentItems.map(finding => (
-                      <tr key={finding.id}>
-                        <td>
-                          <Form.Check 
-                            type="checkbox" 
-                            checked={selectedFindings.includes(finding.id)}
-                            onChange={() => toggleFindingSelection(finding.id)}
+                    </InputGroup>
+                  </Col>
+                  <Col lg={8} md={6} className="d-flex justify-content-md-end">
+                    <Dropdown className="me-2">
+                      <Dropdown.Toggle variant="outline-secondary" id="severity-filter" disabled={loading}>
+                        <FaFilter className="me-1" />
+                        Severity: {filterSeverity}
+                      </Dropdown.Toggle>
+                      <Dropdown.Menu>
+                        <Dropdown.Item onClick={() => setFilterSeverity('All')}>All Severities</Dropdown.Item>
+                        {Object.entries(severityMap)
+                          .filter(([key]) => key !== 'unknown')
+                          .map(([key, { display }]) => (
+                          <Dropdown.Item key={key} onClick={() => setFilterSeverity(display)}>{display}</Dropdown.Item>
+                        ))}
+                      </Dropdown.Menu>
+                    </Dropdown>
+                  </Col>
+                </Row>
+              </Card.Body>
+            </Card>
+
+            {/* Findings Table */}
+            <Card className="border-0 shadow-sm">
+              <Card.Body>
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <div>
+                    <h5 className="mb-0 text-muted">
+                      {loading ? 'Loading...' : `${filteredFindings.length} finding${filteredFindings.length !== 1 ? 's' : ''} found`}
+                      {selectedFindings.length > 0 && ` (${selectedFindings.length} selected)`}
+                    </h5>
+                  </div>
+                  <div>
+                    {selectedFindings.length > 0 && !loading && (
+                    <>
+                      <Button variant="outline-danger" size="sm" className="me-2" disabled>
+                        <FaTrash className="me-1" /> Delete Selected
+                      </Button>
+                      <Button variant="outline-primary" size="sm" disabled>
+                        <FaFileDownload className="me-1" /> Export Selected
+                      </Button>
+                    </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="table-responsive">
+                  <Table hover className="align-middle">
+                    <thead className="table-light">
+                      <tr>
+                        <th style={{ width: '3%' }}>
+                          <Form.Check
+                            type="checkbox"
+                            onChange={toggleSelectAll}
+                            checked={!loading && currentItems.length > 0 && currentItems.every(item => selectedFindings.includes(item.id))}
+                            disabled={loading || currentItems.length === 0}
                           />
-                        </td>
-                        <td>
-                          <Badge 
-                            bg={severityMap[finding.severity]?.color || 'secondary'}
-                            className="d-flex align-items-center gap-1 py-2 px-2"
-                          >
-                            {severityMap[finding.severity]?.icon} {finding.severity}
-                          </Badge>
-                        </td>
-                        <td>
-                          <div className="fw-semibold">{finding.title}</div>
-                          <div className="small text-muted">{finding.location}</div>
-                        </td>
-                        <td>{finding.target}</td>
-                        <td>
-                          <Badge 
-                            bg={finding.status === 'Fixed' ? 'success' : finding.status === 'Open' ? 'danger' : 'warning'}
-                            className="py-2 px-2"
-                          >
-                            {finding.status}
-                          </Badge>
-                        </td>
-                        <td>{finding.date}</td>
-                        <td>
-                          <div className="d-flex">
-                            <OverlayTrigger
-                              placement="top"
-                              overlay={<Tooltip>View Details</Tooltip>}
-                            >
-                              <Button 
-                                variant="light" 
-                                size="sm" 
-                                className="me-1 text-primary"
-                              >
-                                <FaEye />
-                              </Button>
-                            </OverlayTrigger>
-                            <OverlayTrigger
-                              placement="top"
-                              overlay={<Tooltip>Delete</Tooltip>}
-                            >
-                              <Button 
-                                variant="light" 
-                                size="sm"
-                                className="text-danger"
-                              >
-                                <FaTrash />
-                              </Button>
-                            </OverlayTrigger>
-                          </div>
-                        </td>
+                        </th>
+                        <th style={{ width: '10%' }}>Severity</th>
+                        <th style={{ width: '40%' }}>Vulnerability & Location</th>
+                        <th style={{ width: '32%' }}>Target URL</th>
+                        <th style={{ width: '10%' }}>Detected</th>
+                        <th style={{ width: '5%' }} className="text-center">Actions</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </Table>
-            </div>
-            
-            {/* Pagination */}
-            <div className="d-flex justify-content-between align-items-center mt-3">
-              <div className="small text-muted">
-                Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredFindings.length)} of {filteredFindings.length} findings
-              </div>
-              <Pagination size="sm" className="mb-0">
-                {renderPaginationItems()}
-              </Pagination>
-            </div>
-          </Card.Body>
-        </Card>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-5">
+                            <Spinner animation="border" role="status" variant="primary">
+                              <span className="visually-hidden">Loading...</span>
+                            </Spinner>
+                          </td>
+                        </tr>
+                      ) : error ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-5 text-danger">
+                            Error loading findings: {error}
+                          </td>
+                        </tr>
+                      ) : currentItems.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-4 text-muted">No findings match your criteria.</td>
+                        </tr>
+                      ) : (
+                        currentItems.map(finding => (
+                          <tr key={finding.id}>
+                            <td>
+                              <Form.Check
+                                type="checkbox"
+                                checked={selectedFindings.includes(finding.id)}
+                                onChange={() => toggleFindingSelection(finding.id)}
+                              />
+                            </td>
+                            <td>
+                              <Badge
+                                bg={severityMap[finding.severity]?.color || 'light'}
+                                text={['warning', 'light', 'info'].includes(severityMap[finding.severity]?.color) ? 'dark' : 'white'}
+                                className="d-flex align-items-center gap-1 py-1 px-2 text-capitalize"
+                              >
+                                {severityMap[finding.severity]?.icon} {finding.severity}
+                              </Badge>
+                            </td>
+                            <td>
+                              <div className="fw-semibold">{finding.vulnerabilityName}</div>
+                              <div className="small text-muted" style={{ wordBreak: 'break-all' }}>{finding.location}</div>
+                            </td>
+                            <td className="small text-break">
+                              {finding.targetUrl ? (
+                                <a href={finding.targetUrl} target="_blank" rel="noopener noreferrer" title={finding.targetUrl} className="text-decoration-none">
+                                  {finding.targetUrl.replace(/^https?:\/\//, '')}
+                                  <FaExternalLinkAlt className="ms-1 small text-muted" />
+                                </a>
+                              ) : (
+                                <span className="text-muted">N/A</span>
+                              )}
+                            </td>
+                            <td className="small">{formatDate(finding.date)}</td>
+                            <td className="text-center">
+                              <div className="d-flex justify-content-center">
+                                <OverlayTrigger placement="top" overlay={<Tooltip>View Details</Tooltip>}>
+                                  <Button variant="light" size="sm" className="me-1 text-primary" disabled>
+                                    <FaEye />
+                                  </Button>
+                                </OverlayTrigger>
+                                <OverlayTrigger placement="top" overlay={<Tooltip>Delete</Tooltip>}>
+                                  <Button variant="light" size="sm" className="text-danger" disabled>
+                                    <FaTrash />
+                                  </Button>
+                                </OverlayTrigger>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </Table>
+                </div>
+
+                {!loading && !error && filteredFindings.length > 0 && totalPages > 1 && (
+                  <div className="d-flex justify-content-between align-items-center mt-3 pt-3 border-top">
+                    <div className="small text-muted">
+                      Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredFindings.length)} of {filteredFindings.length} findings
+                    </div>
+                    <Pagination size="sm" className="mb-0">
+                      {renderPaginationItems()}
+                    </Pagination>
+                  </div>
+                )}
+              </Card.Body>
+            </Card>
+          </>
+        )}
       </Container>
     </div>
   );
 };
 
-export default SemgrepFindings; 
+export default SemgrepFindings;
