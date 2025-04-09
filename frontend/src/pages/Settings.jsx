@@ -8,7 +8,6 @@ const Settings = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [alertInfo, setAlertInfo] = useState({ show: false, variant: '', message: '' });
   
-  // Form states
   const [scanner, setScanner] = useState('zap');
   const [scannerUrl, setScannerUrl] = useState('https://localhost');
   const [scannerPort, setScannerPort] = useState('');
@@ -18,7 +17,6 @@ const Settings = () => {
     const fetchSettings = async () => {
       try {
         setIsLoading(true);
-        // Fetch settings implementation would go here
         setIsLoading(false);
       } catch (error) {
         console.error("Error fetching settings:", error);
@@ -26,8 +24,6 @@ const Settings = () => {
       }
     };
     
-    // Uncomment to fetch settings on component mount
-    // fetchSettings();
   }, []);
 
   const handleSubmit = async (e) => {

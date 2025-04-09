@@ -11,6 +11,7 @@ import {
 } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import apiCall from '../utils/api';
 
 const CompanyRelationPanel = () => {
   const { user } = useAuth();
@@ -42,10 +43,14 @@ const CompanyRelationPanel = () => {
     setCompanyLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await apiCall('/admin/createCompany', {
+        method: 'POST',
+        body: JSON.stringify({
+          company_name: companyName
+        })
+      });
       
       showAlertMessage('success', `Company "${companyName}" created successfully`, 'company');
-      
       setCompanyName('');
     } catch (error) {
       console.error('Error creating company:', error);
@@ -77,7 +82,14 @@ const CompanyRelationPanel = () => {
     setUserLoading(true);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Endpoint for adding user to company
+      await apiCall('/admin/addCompanyUser', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: userEmail,
+          company_name: userCompanyName
+        })
+      });
       
       showAlertMessage('success', `User ${userEmail} added to company "${userCompanyName}" successfully`, 'user');
       
@@ -250,4 +262,4 @@ const CompanyRelationPanel = () => {
   );
 };
 
-export default CompanyRelationPanel; 
+export default CompanyRelationPanel;

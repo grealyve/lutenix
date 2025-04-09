@@ -30,7 +30,7 @@ import AcunetixGenerateReport from './pages/acunetix/GenerateReport';
 import Settings from './pages/Settings';
 import ProfileSettings from './pages/ProfileSettings';
 import AdminPanel from './pages/AdminPanel';
-import CompanyCreationPanel from './pages/CompanyCreationPanel';
+import UserCreationPanel from './pages/UserCreationPanel';
 import CompanyRelationPanel from './pages/CompanyRelationPanel';
 import Help from './pages/Help';
 
@@ -79,7 +79,7 @@ function App() {
               <Route path="settings" element={<Settings />} />
               <Route path="profile-settings" element={<ProfileSettings />} />
               <Route path="admin" element={<AdminPanel />} />
-              <Route path="company-creation" element={<CompanyCreationPanel />} />
+              <Route path="user-creation" element={<UserCreationPanel />} />
               <Route path="company-relation" element={<CompanyRelationPanel />} />
               <Route path="help" element={<Help />} />
             </Route>

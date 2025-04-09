@@ -20,7 +20,6 @@ const AdminPanel = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   
-  // States
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedUsers, setSelectedUsers] = useState([]);
@@ -34,9 +33,8 @@ const AdminPanel = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [alert, setAlert] = useState({ show: false, variant: '', message: '' });
   
-  const itemsPerPage = 8;
+  const itemsPerPage = 10;
 
-  // Check if user is admin
   useEffect(() => {
     if (user && user.role !== 'admin') {
       navigate('/');

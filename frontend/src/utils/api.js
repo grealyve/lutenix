@@ -28,7 +28,8 @@ export const apiCall = async (endpoint, options = {}) => {
   }
 
   const defaultHeaders = {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json; charset=utf-8',
+    'Accept': 'application/json',
   };
 
   if (token) {
@@ -74,7 +75,8 @@ export const authAPI = {
     const response = await fetch(`${BASE_URL}/users/login`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json; charset=utf-8',
+        'Accept': 'application/json',
       },
       body: JSON.stringify(credentials),
     });
@@ -110,4 +112,4 @@ export const scanAPI = {
   }),
 };
 
-export default apiCall; 
+export default apiCall;

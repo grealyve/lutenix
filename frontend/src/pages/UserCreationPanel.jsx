@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const CompanyCreationPanel = () => {
+const UserCreationPanel = () => {
   const { user, token } = useAuth();
   const navigate = useNavigate();
   
@@ -230,4 +230,4 @@ const CompanyCreationPanel = () => {
   );
 };
 
-export default CompanyCreationPanel; 
+export default UserCreationPanel; 

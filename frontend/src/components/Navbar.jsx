@@ -269,8 +269,8 @@ const NavbarComponent = () => {
               </Nav.Link>
               <Nav.Link 
                 as={Link} 
-                to="/company-creation" 
-                className={`py-2 d-flex align-items-center ${isSubPathActive('/company-creation') ? 'active' : ''}`}
+                to="/user-creation" 
+                className={`py-2 d-flex align-items-center ${isSubPathActive('/user-creation') ? 'active' : ''}`}
               >
                 <i className="bi bi-person-plus me-2"></i>
                 User Creation
