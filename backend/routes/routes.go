@@ -43,6 +43,7 @@ func SemgrepRoutes(semgrepRoutes *gin.Engine) {
 	semgrep.GET("/scans", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListScans)             // Requires deployment_id as a query parameter
 	semgrep.GET("/findings", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListFindings)       // Requires deployment_slug as a query parameter
 	semgrep.GET("/secrets", middlewares.Authentication(), middlewares.Authorization("scanner", "read"), scanController.SemgrepListSecrets)         // Requires deployment_id as a query parameter
+	semgrep.GET("/repository", scanController.SemgrepListRepositories)
 }
 
 func UserRoutes(userRoutes *gin.Engine, authController *controller.AuthController) {

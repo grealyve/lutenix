@@ -17,45 +17,32 @@ type SemgrepDeployment struct {
 	} `json:"findings"`
 }
 
-const SemgrepTimeLayoutRFC3339 = time.RFC3339Nano // Use the standard library constant
+const SemgrepTimeLayoutRFC3339 = time.RFC3339Nano 
 
-// SemgrepTime is a custom type to handle Semgrep's potentially varying timestamp formats.
 type SemgrepTime struct {
 	time.Time
 }
 
-// UnmarshalJSON implements the json.Unmarshaler interface for SemgrepTime.
-// It tries parsing multiple potential layouts from the Semgrep API.
 func (st *SemgrepTime) UnmarshalJSON(b []byte) error {
-	// 1. Get the string value from the JSON bytes (trimming quotes)
 	s := strings.Trim(string(b), "\"")
 
-	// 2. Handle null or empty values from JSON
 	if s == "null" || s == "" {
-		st.Time = time.Time{} // Set to zero value for time
+		st.Time = time.Time{} 
 		return nil
 	}
 
-	// 3. Try parsing with the RFC3339 layout first (often more standard)
 	parsedTime, errRFC := time.Parse(SemgrepTimeLayoutRFC3339, s)
 	if errRFC == nil {
-		// Success with RFC3339 layout
 		st.Time = parsedTime
 		return nil
 	}
 
-	// 4. If RFC3339 failed, try parsing with the space-separated layout
 	parsedTime, errSpace := time.Parse(SemgrepTimeLayoutSpace, s)
 	if errSpace == nil {
-		// Success with space layout
 		st.Time = parsedTime
 		return nil
 	}
 
-	// 5. If both layouts failed, return a combined error
-	// We return the first error (errRFC) as it might be the more common format,
-	// but log that both failed for debugging. You could potentially combine errors too.
-	// logger.Log.Debugf("Failed to parse time %q with both RFC3339 (%v) and Space (%v) layouts", s, errRFC, errSpace)
 	return fmt.Errorf("cannot parse time %q using known layouts [%q (%v), %q (%v)]",
 		s, SemgrepTimeLayoutRFC3339, errRFC, SemgrepTimeLayoutSpace, errSpace)
 }
@@ -65,8 +52,8 @@ type SemgrepProject struct {
 	Name          string      `json:"name"`
 	URL           string      `json:"url"`
 	Tags          []string    `json:"tags"`
-	CreatedAt     SemgrepTime `json:"created_at"`     // Use custom type
-	LatestScanAt  SemgrepTime `json:"latest_scan_at"` // Use custom type
+	CreatedAt     SemgrepTime `json:"created_at"`    
+	LatestScanAt  SemgrepTime `json:"latest_scan_at"`
 	PrimaryBranch string      `json:"primary_branch"`
 	DefaultBranch string      `json:"default_branch"`
 }
@@ -100,4 +87,60 @@ type SemgrepScanSearchParams struct {
 	Branch   string   `json:"branch"`
 	Cursor   string   `json:"cursor"`
 	Limit    int      `json:"limit"`
+}
+
+
+type SemgrepRepoInfo struct {
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	ProvisionedAt SemgrepTime `json:"provisionedAt"`
+	LatestScan    struct {
+		ID          string    `json:"id"`
+		StartedAt   SemgrepTime `json:"startedAt"`
+		CompletedAt SemgrepTime `json:"completedAt"`
+		ExitCode    string    `json:"exitCode"`
+		Status      string    `json:"status"`
+		HasLogs     bool      `json:"hasLogs"`
+	} `json:"latestScan"`
+	DeploymentID        string   `json:"deploymentId"`
+	URL                 string   `json:"url"`
+	IgnoredFiles        []string `json:"ignoredFiles"`
+	ProductIgnoredFiles struct {
+		Sast    []string `json:"sast"`
+		Sca     []string `json:"sca"`
+		Secrets []string `json:"secrets"`
+	} `json:"productIgnoredFiles"`
+	FirstScanID      string   `json:"firstScanId"`
+	IsSetup          bool     `json:"isSetup"`
+	ScmLastSyncedAt  float64  `json:"scmLastSyncedAt,omitempty"`
+	AuthorizedScopes []string `json:"authorizedScopes"`
+	Provider         string   `json:"provider"`
+	PrimaryRef       struct {
+		ID         string `json:"id"`
+		Ref        string `json:"ref"`
+		IsOverride bool   `json:"isOverride"`
+	} `json:"primaryRef"`
+	DefaultRef struct {
+		ID  string `json:"id"`
+		Ref string `json:"ref"`
+	} `json:"defaultRef"`
+	LastScannedRef struct {
+		ID  string `json:"id"`
+		Ref string `json:"ref"`
+	} `json:"lastScannedRef"`
+	LatestFullScaScanAt SemgrepTime `json:"latestFullScaScanAt"`
+	ScaInfo             struct {
+		DependencyCounts map[string]interface{} `json:"dependencyCounts"`
+	} `json:"scaInfo"`
+	ScmType        string        `json:"scmType"`
+	Tags           []interface{} `json:"tags"`
+	IsArchived     bool          `json:"isArchived"`
+	IsDisconnected bool          `json:"isDisconnected"`
+	HasCodeAccess  bool          `json:"hasCodeAccess"`
+	Refs           []interface{} `json:"refs"`
+	LinkedRepos    []interface{} `json:"linkedRepos"`
+}
+
+type SemgrepRepository struct {
+	Repos []SemgrepRepoInfo `json:"repos"`
 }

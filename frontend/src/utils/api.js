@@ -115,6 +115,7 @@ export const scanAPI = {
 export const semgrepAPI = {
   getDeployments: () => apiCall('/semgrep/deployments'),
   getFindingsByDeployment: (slug) => apiCall(`/semgrep/findings?deployment_slug=${slug}`),
+  getReposByDeployment: (deploymentId) => apiCall(`/semgrep/repos?deployment_id=${deploymentId}`),
 };
 
 export default apiCall;

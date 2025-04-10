@@ -134,6 +134,21 @@ func (sc *ScanController) SemgrepListSecrets(c *gin.Context) {
 	})
 }
 
+func (sc *ScanController) SemgrepListRepositories(c *gin.Context) {
+	logger.Log.Debugln("SemgrepListRepositories endpoint called")
+	deploymentID := c.Query("deployment_id")
+	if deploymentID == "" {
+		logger.Log.Warnln("deployment_id is required for SemgrepListRepositories")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "deployment_id is required"})
+		return
+	}
+	logger.Log.Debugf("SemgrepListRepositories called with deployment_id: %s", deploymentID)
+
+	sc.handleSemgrepRequest(c, func(userID uuid.UUID) (any, error) {
+		return sc.AssetService.SemgrepListRepositories(deploymentID, userID)
+	})
+}
+
 // handleZapRequest is a helper like handleSemgrepRequest, but for ZAP.
 func (sc *ScanController) handleZapRequest(c *gin.Context, handler func(userID uuid.UUID) (any, error)) {
 	userID := c.MustGet("userID").(uuid.UUID)

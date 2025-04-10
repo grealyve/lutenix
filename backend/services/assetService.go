@@ -1,6 +1,8 @@
 package services
 
 import (
+	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -776,9 +778,11 @@ func (a *AssetService) GetZapSpiderStatus(spiderScanID string, userID uuid.UUID)
 func (a *AssetService) CheckZAPScanStatus(scanID uuid.UUID, userID uuid.UUID) (string, error) {
 	logger.Log.Debugf("CheckZAPScanStatus called for scan ID: %s, user ID: %s", scanID, userID)
 	var scan models.Scan
-	
+
 	if err := database.DB.First(&scan, "id = ?", scanID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) { return "", fmt.Errorf("scan not found") }
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", fmt.Errorf("scan not found")
+		}
 		logger.Log.Errorf("Error fetching scan %s: %v", scanID, err)
 		return "", fmt.Errorf("database error finding scan: %v", err)
 	}
@@ -806,7 +810,7 @@ func (a *AssetService) CheckZAPScanStatus(scanID uuid.UUID, userID uuid.UUID) (s
 	zapStatus, err := a.GetZapScanStatus(scan.ZapVulnScanID, userID)
 	if err != nil {
 		logger.Log.Errorf("Error checking ZAP active scan status for scan %s (ZAP ID: %s): %v", scan.ID, scan.ZapVulnScanID, err)
-		return scan.Status, err 
+		return scan.Status, err
 	}
 	logger.Log.Infof("ZAP active scan status for DB scan ID %s (ZAP ID %s): %s", scan.ID, scan.ZapVulnScanID, zapStatus)
 
@@ -896,7 +900,9 @@ func (a *AssetService) FetchAndSaveZapFindingsByURL(baseURL string, userID uuid.
 
 	var user models.User
 	if err := database.DB.Select("company_id").First(&user, "id = ?", userID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) { return nil, fmt.Errorf("user not found") }
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("user not found")
+		}
 		logger.Log.Errorf("Error fetching user %s: %v", userID, err)
 		return nil, fmt.Errorf("could not retrieve user information: %v", err)
 	}
@@ -916,22 +922,31 @@ func (a *AssetService) FetchAndSaveZapFindingsByURL(baseURL string, userID uuid.
 	logger.Log.Infof("Found associated scan record ID: %s for URL: %s", latestScan.ID, baseURL)
 
 	scannerSetting, err := a.getUserScannerZAPSettings(userID)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	encodedBaseURL := url.QueryEscape(baseURL)
 	endpoint := fmt.Sprintf("/JSON/core/view/alerts/?apikey=%s&baseurl=%s&start=&count=",
 		scannerSetting.APIKey, encodedBaseURL)
 
 	logger.Log.Debugf("Fetching ZAP alerts from: %s", endpoint)
 	resp, err := utils.SendGETRequestZap(endpoint, scannerSetting.APIKey, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
-	if err != nil { return nil, fmt.Errorf("alerts couldn't be fetched from ZAP: %v", err) }
+	if err != nil {
+		return nil, fmt.Errorf("alerts couldn't be fetched from ZAP: %v", err)
+	}
 	defer resp.Body.Close()
 	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil { return nil, fmt.Errorf("failed to read alerts response body: %v", err) }
-	if resp.StatusCode != http.StatusOK { return nil, fmt.Errorf("ZAP get alerts API returned non-OK status: %d", resp.StatusCode) }
+	if err != nil {
+		return nil, fmt.Errorf("failed to read alerts response body: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ZAP get alerts API returned non-OK status: %d", resp.StatusCode)
+	}
 	var zapResult ZapAlertsResponse
-	if err := json.Unmarshal(bodyBytes, &zapResult); err != nil { return nil, fmt.Errorf("ZAP alerts response couldn't be handled: %v", err) }
+	if err := json.Unmarshal(bodyBytes, &zapResult); err != nil {
+		return nil, fmt.Errorf("ZAP alerts response couldn't be handled: %v", err)
+	}
 	logger.Log.Infof("Successfully fetched %d alerts from ZAP for base URL: %s", len(zapResult.Alerts), baseURL)
-
 
 	savedFindings := []models.Finding{}
 
@@ -1314,4 +1329,55 @@ func (a *AssetService) SemgrepListSecrets(deploymentID string, userID uuid.UUID)
 	}
 	logger.Log.Infof("Retrieved %d Semgrep secrets for deployment ID: %s", len(findings), deploymentID)
 	return findings, nil
+}
+
+// https://semgrep.dev/api/agent/deployments/{deployment_id}/repos/search
+func (a *AssetService) SemgrepListRepositories(deploymentID string, userID uuid.UUID) ([]models.SemgrepRepoInfo, error) {
+	logger.Log.Debugf("SemgrepListRepositories called for deployment ID: %s, user ID: %s", deploymentID, userID)
+	semgrepSetting, err := utils.SemgrepGetUserSettings(userID)
+	if err != nil {
+		logger.Log.Errorln("Semgrep setting couldn't fetch:", err)
+		return nil, err
+	}
+
+	url := fmt.Sprintf("https://semgrep.dev/api/agent/deployments/%s/repos/search", deploymentID)
+	body := []byte(`{}`)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		logger.Log.Errorln("Request creation error:", err)
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+semgrepSetting.APIKey)
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{Transport: tr}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.Log.Errorln("Request error:", err)
+		return nil, err
+	}
+
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		logger.Log.Errorf("Could not read response body from repositories fetch: %v", readErr)
+		return nil, fmt.Errorf("failed to read repositories response body: %w", readErr)
+	}
+	defer resp.Body.Close()
+
+	var responseData models.SemgrepRepository
+	if err := json.Unmarshal(bodyBytes, &responseData); err != nil {
+		logger.Log.Errorf("Error decoding Semgrep repositories response: %v. Response Body: %s", err, string(bodyBytes))
+		return nil, fmt.Errorf("repositories response couldn't handle: %v", err)
+	}
+
+	logger.Log.Infof("Successfully decoded %d Semgrep repositories for deployment ID: %s", len(responseData.Repos), deploymentID)
+
+	return responseData.Repos, nil
 }
