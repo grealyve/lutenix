@@ -1,201 +1,78 @@
 import { useState, useEffect } from 'react';
-import { Container, Row, Col, Card, Form, InputGroup, Table, Badge, Button, Pagination, Dropdown, OverlayTrigger, Tooltip } from 'react-bootstrap';
+import { Container, Row, Col, Card, Form, InputGroup, Table, Badge, Button, Pagination, Dropdown, OverlayTrigger, Tooltip, Spinner, Alert } from 'react-bootstrap';
 import { FaSearch, FaFilter, FaExclamationTriangle, FaInfoCircle, FaEye, FaTrash, FaFileDownload } from 'react-icons/fa';
+import { format } from 'date-fns';
 
 const OwaspZapFindings = () => {
   const [findings, setFindings] = useState([]);
   const [filteredFindings, setFilteredFindings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedFindings, setSelectedFindings] = useState([]);
   
   const itemsPerPage = 10;
   
   const severityMap = {
-    Critical: { color: 'danger', icon: <FaExclamationTriangle /> },
     High: { color: 'danger', icon: <FaExclamationTriangle /> },
     Medium: { color: 'warning', icon: <FaExclamationTriangle /> },
     Low: { color: 'info', icon: <FaInfoCircle /> },
-    Information: { color: 'secondary', icon: <FaInfoCircle /> }
+    Informational: { color: 'secondary', icon: <FaInfoCircle /> }
   };
-  
-  const [summary, setSummary] = useState({
-    Critical: 0,
-    High: 0,
-    Medium: 0,
-    Low: 0,
-    Information: 0
-  });
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const mockData = [
-          {
-            id: 1,
-            title: 'Cross-Site Scripting (XSS)',
-            severity: 'High',
-            target: 'https://example.com/search',
-            location: 'search.php?q=term',
-            description: 'Reflected XSS vulnerability in search parameter',
-            status: 'Open',
-            date: '2023-04-18'
-          },
-          {
-            id: 2,
-            title: 'SQL Injection',
-            severity: 'Critical',
-            target: 'https://example.com/products',
-            location: 'products.php?id=123',
-            description: 'SQL injection in product ID parameter',
-            status: 'Open',
-            date: '2023-04-19'
-          },
-          {
-            id: 3,
-            title: 'Missing HTTP Security Headers',
-            severity: 'Medium',
-            target: 'https://example.com',
-            location: 'Global',
-            description: 'X-Frame-Options header is missing',
-            status: 'Fixed',
-            date: '2023-04-12'
-          },
-          {
-            id: 4,
-            title: 'CSRF Vulnerability',
-            severity: 'High',
-            target: 'https://example.com/settings',
-            location: 'settings.php',
-            description: 'CSRF token is missing for settings form',
-            status: 'Open',
-            date: '2023-04-15'
-          },
-          {
-            id: 5,
-            title: 'SSL/TLS Weak Cipher',
-            severity: 'Medium',
-            target: 'https://example.com',
-            location: 'Global',
-            description: 'Weak cipher suites are enabled',
-            status: 'Open',
-            date: '2023-04-14'
-          },
-          {
-            id: 6,
-            title: 'Directory Listing Enabled',
-            severity: 'Low',
-            target: 'https://example.com/assets',
-            location: '/assets',
-            description: 'Directory listing is enabled on assets folder',
-            status: 'Fixed',
-            date: '2023-04-10'
-          },
-          {
-            id: 7,
-            title: 'Insecure Cookie Attributes',
-            severity: 'Medium',
-            target: 'https://example.com',
-            location: 'Global',
-            description: 'Secure and HttpOnly flags are missing on cookies',
-            status: 'Open',
-            date: '2023-04-17'
-          },
-          {
-            id: 8,
-            title: 'Path Traversal Vulnerability',
-            severity: 'Critical',
-            target: 'https://example.com/download',
-            location: 'download.php?file=file.pdf',
-            description: 'Path traversal in file parameter allows access to system files',
-            status: 'Open',
-            date: '2023-04-20'
-          },
-          {
-            id: 9,
-            title: 'Server Information Leakage',
-            severity: 'Information',
-            target: 'https://example.com',
-            location: 'HTTP Headers',
-            description: 'Server version information is disclosed in HTTP headers',
-            status: 'Fixed',
-            date: '2023-04-09'
-          },
-          {
-            id: 10,
-            title: 'Insecure CORS Configuration',
-            severity: 'Medium',
-            target: 'https://api.example.com',
-            location: 'API Endpoints',
-            description: 'Access-Control-Allow-Origin is set to *',
-            status: 'Open',
-            date: '2023-04-16'
-          },
-          {
-            id: 11,
-            title: 'Content Sniffing Not Disabled',
-            severity: 'Low',
-            target: 'https://example.com',
-            location: 'Global',
-            description: 'X-Content-Type-Options header is missing',
-            status: 'Open',
-            date: '2023-04-13'
-          },
-          {
-            id: 12,
-            title: 'Open Redirect',
-            severity: 'Medium',
-            target: 'https://example.com/redirect',
-            location: 'redirect.php?url=https://example.com',
-            description: 'Open redirect vulnerability in url parameter',
-            status: 'Fixed',
-            date: '2023-04-11'
-          },
-          {
-            id: 13,
-            title: 'Vulnerable JavaScript Library',
-            severity: 'High',
-            target: 'https://example.com',
-            location: '/js/jquery-1.8.2.min.js',
-            description: 'Outdated jQuery version with known security vulnerabilities',
-            status: 'Open',
-            date: '2023-04-18'
-          },
-          {
-            id: 14,
-            title: 'HTTP TRACE Method Enabled',
-            severity: 'Low',
-            target: 'https://example.com',
-            location: 'Global',
-            description: 'HTTP TRACE method is enabled',
-            status: 'Fixed',
-            date: '2023-04-08'
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          throw new Error('No authentication token found. Please log in.');
+        }
+        
+        const response = await fetch('http://localhost:4040/api/v1/zap/findings', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
           }
-        ];
+        });
+
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          throw new Error('Authentication failed. Please log in again.');
+        }
         
-        setFindings(mockData);
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`);
+        }
         
-        const summaryData = mockData.reduce((acc, finding) => {
-          acc[finding.severity] = (acc[finding.severity] || 0) + 1;
+        const responseData = await response.json();
+        
+        if (!responseData || !responseData.data || !Array.isArray(responseData.data)) {
+          console.error("Unexpected API response structure:", responseData);
+          throw new Error("Received invalid data format from the server.");
+        }
+
+        setFindings(responseData.data);
+        
+        const summaryData = responseData.data.reduce((acc, finding) => {
+          acc[finding.risk] = (acc[finding.risk] || 0) + 1;
           return acc;
         }, {
-          Critical: 0,
           High: 0,
           Medium: 0,
           Low: 0,
-          Information: 0
+          Informational: 0
         });
         
         setSummary(summaryData);
         setLoading(false);
-      } catch (error) {
-        console.error('Error fetching findings:', error);
+      } catch (err) {
+        console.error('Error fetching findings:', err);
+        setError(err.message);
         setLoading(false);
       }
     };
@@ -203,29 +80,32 @@ const OwaspZapFindings = () => {
     fetchData();
   }, []);
   
+  // State for summary counts
+  const [summary, setSummary] = useState({
+    High: 0,
+    Medium: 0,
+    Low: 0,
+    Informational: 0
+  });
+  
   useEffect(() => {
     let results = findings;
     
     if (searchTerm) {
       results = results.filter(finding =>
-        finding.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        finding.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        finding.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        finding.target.toLowerCase().includes(searchTerm.toLowerCase())
+        (finding.vulnerability_name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (finding.url?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (finding.location?.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
     
     if (filterSeverity !== 'All') {
-      results = results.filter(finding => finding.severity === filterSeverity);
-    }
-    
-    if (filterStatus !== 'All') {
-      results = results.filter(finding => finding.status === filterStatus);
+      results = results.filter(finding => finding.risk === filterSeverity);
     }
     
     setFilteredFindings(results);
     setCurrentPage(1);
-  }, [findings, searchTerm, filterSeverity, filterStatus]);
+  }, [findings, searchTerm, filterSeverity]);
   
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -303,11 +183,36 @@ const OwaspZapFindings = () => {
     
     return items;
   };
+
+  const handleDeleteSelected = () => {
+    if (window.confirm(`Are you sure you want to delete ${selectedFindings.length} finding(s)?`)) {
+      alert(`Deleted ${selectedFindings.length} finding(s)`);
+    }
+  };
+
+  const handleExportSelected = () => {
+    alert(`Exported ${selectedFindings.length} finding(s)`);
+  };
+
+  const handleViewDetails = (findingId) => {
+    alert(`Viewing details for finding ${findingId}`);
+  };
+
+  const handleDeleteSingle = (findingId) => {
+    if (window.confirm(`Are you sure you want to delete finding ${findingId}?`)) {
+
+      alert(`Deleted finding ${findingId}`);
+    }
+  };
   
   return (
     <div className="page-content">
       <Container fluid>
+        {/* Page Title */}
         <h1 className="mb-4">OWASP ZAP Findings</h1>
+        
+        {/* Error Display */}
+        {error && <Alert variant="danger">{error}</Alert>}
         
         {/* Summary cards */}
         <Row className="mb-4">
@@ -318,8 +223,8 @@ const OwaspZapFindings = () => {
                   <FaExclamationTriangle size={30} />
                 </div>
                 <div>
-                  <h5 className="mb-0">Critical & High</h5>
-                  <h3 className="mb-0">{summary.Critical + summary.High}</h3>
+                  <h5 className="mb-0">High</h5>
+                  <h3 className="mb-0">{summary.High}</h3>
                 </div>
               </Card.Body>
             </Card>
@@ -357,8 +262,8 @@ const OwaspZapFindings = () => {
                   <FaInfoCircle size={30} />
                 </div>
                 <div>
-                  <h5 className="mb-0">Information</h5>
-                  <h3 className="mb-0">{summary.Information}</h3>
+                  <h5 className="mb-0">Informational</h5>
+                  <h3 className="mb-0">{summary.Informational}</h3>
                 </div>
               </Card.Body>
             </Card>
@@ -381,32 +286,18 @@ const OwaspZapFindings = () => {
                   />
                 </InputGroup>
               </Col>
-              <Col lg={8} md={6} className="d-flex justify-content-md-end">
+              <Col lg={8} md={6} className="d-flex justify-content-md-end align-items-center">
                 <Dropdown className="me-2">
-                  <Dropdown.Toggle variant="light" id="severity-filter">
+                  <Dropdown.Toggle variant="outline-secondary" id="severity-filter">
                     <FaFilter className="me-2" />
                     Severity: {filterSeverity}
                   </Dropdown.Toggle>
                   <Dropdown.Menu>
-                    <Dropdown.Item onClick={() => setFilterSeverity('All')}>All</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('Critical')}>Critical</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('High')}>High</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('Medium')}>Medium</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('Low')}>Low</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterSeverity('Information')}>Information</Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown>
-                <Dropdown>
-                  <Dropdown.Toggle variant="light" id="status-filter">
-                    <FaFilter className="me-2" />
-                    Status: {filterStatus}
-                  </Dropdown.Toggle>
-                  <Dropdown.Menu>
-                    <Dropdown.Item onClick={() => setFilterStatus('All')}>All</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterStatus('Open')}>Open</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterStatus('Fixed')}>Fixed</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterStatus('In Progress')}>In Progress</Dropdown.Item>
-                    <Dropdown.Item onClick={() => setFilterStatus('Won\'t Fix')}>Won't Fix</Dropdown.Item>
+                    <Dropdown.Item onClick={() => setFilterSeverity('All')} active={filterSeverity === 'All'}>All</Dropdown.Item>
+                    <Dropdown.Item onClick={() => setFilterSeverity('High')} active={filterSeverity === 'High'}>High</Dropdown.Item>
+                    <Dropdown.Item onClick={() => setFilterSeverity('Medium')} active={filterSeverity === 'Medium'}>Medium</Dropdown.Item>
+                    <Dropdown.Item onClick={() => setFilterSeverity('Low')} active={filterSeverity === 'Low'}>Low</Dropdown.Item>
+                    <Dropdown.Item onClick={() => setFilterSeverity('Informational')} active={filterSeverity === 'Informational'}>Informational</Dropdown.Item>
                   </Dropdown.Menu>
                 </Dropdown>
               </Col>
@@ -420,17 +311,28 @@ const OwaspZapFindings = () => {
             <div className="d-flex justify-content-between align-items-center mb-3">
               <div>
                 <h5 className="mb-0">
-                  Total findings: {filteredFindings.length}
+                  {loading ? 'Loading findings...' :
+                   error ? 'Error loading findings' :
+                   `Total findings: ${filteredFindings.length}`}
                   {selectedFindings.length > 0 && ` (${selectedFindings.length} selected)`}
                 </h5>
               </div>
               <div>
-                {selectedFindings.length > 0 && (
+                {selectedFindings.length > 0 && !loading && (
                   <>
-                    <Button variant="outline-danger" size="sm" className="me-2">
+                    <Button 
+                      variant="outline-danger" 
+                      size="sm" 
+                      className="me-2"
+                      onClick={handleDeleteSelected}
+                    >
                       <FaTrash className="me-1" /> Delete
                     </Button>
-                    <Button variant="outline-primary" size="sm">
+                    <Button 
+                      variant="outline-primary" 
+                      size="sm"
+                      onClick={handleExportSelected}
+                    >
                       <FaFileDownload className="me-1" /> Export
                     </Button>
                   </>
@@ -447,101 +349,122 @@ const OwaspZapFindings = () => {
                         type="checkbox" 
                         onChange={toggleSelectAll} 
                         checked={currentItems.length > 0 && currentItems.every(item => selectedFindings.includes(item.id))}
+                        disabled={loading || currentItems.length === 0}
                       />
                     </th>
-                    <th style={{ width: '100px' }}>Severity</th>
-                    <th>Title & Location</th>
-                    <th>Target</th>
-                    <th style={{ width: '100px' }}>Status</th>
-                    <th style={{ width: '110px' }}>Date</th>
+                    <th style={{ width: '120px' }}>Severity</th>
+                    <th>Vulnerability & URL</th>
+                    <th>Location</th>
+                    <th style={{ width: '180px' }}>Date Found</th>
                     <th style={{ width: '80px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-4">Loading...</td>
+                      <td colSpan={6} className="text-center py-4">
+                        <Spinner animation="border" role="status" size="sm">
+                          <span className="visually-hidden">Loading...</span>
+                        </Spinner> Loading...
+                      </td>
+                    </tr>
+                  ) : error ? (
+                    <tr>
+                      <td colSpan={6} className="text-center py-4 text-danger">
+                        Error loading findings. Please try again later.
+                      </td>
                     </tr>
                   ) : currentItems.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="text-center py-4">No findings match your filters</td>
+                      <td colSpan={6} className="text-center py-4">
+                        {findings.length === 0 ? 'No findings available.' : 'No findings match your current filters.'}
+                      </td>
                     </tr>
                   ) : (
-                    currentItems.map(finding => (
-                      <tr key={finding.id}>
-                        <td>
-                          <Form.Check 
-                            type="checkbox" 
-                            checked={selectedFindings.includes(finding.id)}
-                            onChange={() => toggleFindingSelection(finding.id)}
-                          />
-                        </td>
-                        <td>
-                          <Badge 
-                            bg={severityMap[finding.severity]?.color || 'secondary'}
-                            className="d-flex align-items-center gap-1 py-2 px-2"
-                          >
-                            {severityMap[finding.severity]?.icon} {finding.severity}
-                          </Badge>
-                        </td>
-                        <td>
-                          <div className="fw-semibold">{finding.title}</div>
-                          <div className="small text-muted">{finding.location}</div>
-                        </td>
-                        <td>{finding.target}</td>
-                        <td>
-                          <Badge 
-                            bg={finding.status === 'Fixed' ? 'success' : finding.status === 'Open' ? 'danger' : 'warning'}
-                            className="py-2 px-2"
-                          >
-                            {finding.status}
-                          </Badge>
-                        </td>
-                        <td>{finding.date}</td>
-                        <td>
-                          <div className="d-flex">
-                            <OverlayTrigger
-                              placement="top"
-                              overlay={<Tooltip>View Details</Tooltip>}
+                    currentItems.map(finding => {
+                      const severityInfo = severityMap[finding.risk] || { color: 'secondary', icon: <FaInfoCircle /> };
+                      const formattedDate = finding.created_at ? 
+                        format(new Date(finding.created_at), 'yyyy-MM-dd HH:mm:ss') : 
+                        'N/A';
+                        
+                      return (
+                        <tr key={finding.id}>
+                          <td>
+                            <Form.Check 
+                              type="checkbox" 
+                              checked={selectedFindings.includes(finding.id)}
+                              onChange={() => toggleFindingSelection(finding.id)}
+                            />
+                          </td>
+                          <td>
+                            <Badge 
+                              bg={severityInfo.color}
+                              className="d-inline-flex align-items-center gap-1 py-1 px-2"
                             >
-                              <Button 
-                                variant="light" 
-                                size="sm" 
-                                className="me-1 text-primary"
+                              {severityInfo.icon} {finding.risk}
+                            </Badge>
+                          </td>
+                          <td>
+                            <div className="fw-semibold">{finding.vulnerability_name || 'N/A'}</div>
+                            <div className="small text-muted text-truncate" style={{ maxWidth: '400px' }}>
+                              {finding.url || 'N/A'}
+                            </div>
+                          </td>
+                          <td className="small">
+                            {finding.location || 'N/A'}
+                          </td>
+                          <td className="small">
+                            {formattedDate}
+                          </td>
+                          <td>
+                            <div className="d-flex">
+                              <OverlayTrigger
+                                placement="top"
+                                overlay={<Tooltip>View Details</Tooltip>}
                               >
-                                <FaEye />
-                              </Button>
-                            </OverlayTrigger>
-                            <OverlayTrigger
-                              placement="top"
-                              overlay={<Tooltip>Delete</Tooltip>}
-                            >
-                              <Button 
-                                variant="light" 
-                                size="sm"
-                                className="text-danger"
+                                <Button 
+                                  variant="link" 
+                                  size="sm" 
+                                  className="me-1 p-1 text-primary"
+                                  onClick={() => handleViewDetails(finding.id)}
+                                >
+                                  <FaEye />
+                                </Button>
+                              </OverlayTrigger>
+                              <OverlayTrigger
+                                placement="top"
+                                overlay={<Tooltip>Delete</Tooltip>}
                               >
-                                <FaTrash />
-                              </Button>
-                            </OverlayTrigger>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                                <Button 
+                                  variant="link" 
+                                  size="sm"
+                                  className="p-1 text-danger"
+                                  onClick={() => handleDeleteSingle(finding.id)}
+                                >
+                                  <FaTrash />
+                                </Button>
+                              </OverlayTrigger>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </Table>
             </div>
             
-            {/* Pagination */}
-            <div className="d-flex justify-content-between align-items-center mt-3">
-              <div className="small text-muted">
-                Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredFindings.length)} of {filteredFindings.length} findings
+            {}
+            {!loading && !error && totalPages > 0 && (
+              <div className="d-flex justify-content-between align-items-center mt-3 flex-wrap">
+                <div className="small text-muted mb-2 mb-md-0">
+                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredFindings.length)} of {filteredFindings.length} findings
+                </div>
+                <Pagination size="sm" className="mb-0">
+                  {renderPaginationItems()}
+                </Pagination>
               </div>
-              <Pagination size="sm" className="mb-0">
-                {renderPaginationItems()}
-              </Pagination>
-            </div>
+            )}
           </Card.Body>
         </Card>
       </Container>
@@ -549,4 +472,4 @@ const OwaspZapFindings = () => {
   );
 };
 
-export default OwaspZapFindings; 
+export default OwaspZapFindings;

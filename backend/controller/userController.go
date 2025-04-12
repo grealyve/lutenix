@@ -243,18 +243,18 @@ func (uc *UserController) AddUserToCompany(c *gin.Context) {
 }
 
 func (uc *UserController) GetMyProfile(c *gin.Context) {
-	logger.Log.Debugln("GetMyProfile endpoint called") // Debug: Entry point
+	logger.Log.Debugln("GetMyProfile endpoint called")
 
 	userID, exists := c.Get("userID")
 	if !exists {
-		logger.Log.Errorln("User ID couldn't find in context") // Critical: Context problem
+		logger.Log.Errorln("User ID couldn't find in context") 
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "User ID couldn't find in context"})
 		return
 	}
 
 	userIDUUID, ok := userID.(uuid.UUID)
 	if !ok {
-		logger.Log.Errorln("UUID conversion failed") // Critical: Context problem
+		logger.Log.Errorln("UUID conversion failed")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "UUID conversion failed"})
 		return
 	}
@@ -262,7 +262,7 @@ func (uc *UserController) GetMyProfile(c *gin.Context) {
 
 	user, err := uc.UserService.GetUserByID(userIDUUID)
 	if err != nil {
-		logger.Log.Infoln("User not found for current user:", userIDUUID) // Info:  Not an error, user not found.
+		logger.Log.Infoln("User not found for current user:", userIDUUID)
 		c.JSON(http.StatusNotFound, gin.H{"error": "User couldn't find"})
 		return
 	}
@@ -271,7 +271,7 @@ func (uc *UserController) GetMyProfile(c *gin.Context) {
 }
 
 func (uc *UserController) UpdateProfile(c *gin.Context) {
-	logger.Log.Debugln("UpdateProfile endpoint called") // Debug: Entry point
+	logger.Log.Debugln("UpdateProfile endpoint called") 
 	userID := c.MustGet("userID").(uuid.UUID)
 	logger.Log.Debugf("UpdateProfile for user ID: %s", userID)
 
@@ -286,7 +286,7 @@ func (uc *UserController) UpdateProfile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
 		return
 	}
-	logger.Log.Debugf("UpdateProfile request body: %+v", body) // Debug log request body.
+	logger.Log.Debugf("UpdateProfile request body: %+v", body)
 
 	if body.Email != "" {
 		exists, err := uc.UserService.EmailExists(body.Email)
@@ -296,7 +296,7 @@ func (uc *UserController) UpdateProfile(c *gin.Context) {
 			return
 		}
 		if exists {
-			logger.Log.Infoln("Profile update attempted with existing email:", body.Email) // Info: User feedback
+			logger.Log.Infoln("Profile update attempted with existing email:", body.Email)
 			c.JSON(http.StatusConflict, gin.H{"error": "This email address is already in use"})
 			return
 		}
@@ -308,7 +308,7 @@ func (uc *UserController) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	logger.Log.Infoln("Profile updated successfully for user:", userID) // Info: Success
+	logger.Log.Infoln("Profile updated successfully for user:", userID)
 	c.JSON(http.StatusOK, gin.H{"message": "Profile updated successfully"})
 }
 
