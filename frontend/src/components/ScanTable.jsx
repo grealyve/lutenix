@@ -128,11 +128,8 @@ const ScanTable = ({
               />
             </th>
             <th>Target <i className="bi bi-funnel"></i></th>
-            <th>Critical</th>
-            <th>High</th>
-            <th>Medium</th>
-            <th>Low</th>
-            <th>Information</th>
+            <th>Status</th>
+            <th>Created At</th>
           </tr>
         </thead>
         <tbody>
@@ -146,17 +143,18 @@ const ScanTable = ({
                 />
               </td>
               <td>{item.target}</td>
-              <td>{item.critical}</td>
-              <td>{item.high}</td>
-              <td>{item.medium}</td>
-              <td>{item.low}</td>
-              <td>{item.information}</td>
+              <td>
+                <span className={`badge bg-${getStatusColor(item.status)}`}>
+                  {formatStatus(item.status)}
+                </span>
+              </td>
+              <td>{item.createdAt}</td>
             </tr>
           ))}
           
           {currentItems.length === 0 && (
             <tr>
-              <td colSpan="7" className="text-center py-3">No scan results found</td>
+              <td colSpan="4" className="text-center py-3">No scan results found</td>
             </tr>
           )}
         </tbody>
@@ -175,4 +173,40 @@ const ScanTable = ({
   );
 };
 
-export default ScanTable; 
+// Helper function to get appropriate color based on status
+const getStatusColor = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'finished':
+      return 'success';
+    case 'running':
+      return 'primary';
+    case 'completed':
+      return 'success';
+    case 'in progress':
+      return 'primary';
+    case 'queued':
+      return 'info';
+    case 'failed':
+      return 'danger';
+    default:
+      return 'secondary';
+  }
+};
+const formatStatus = (status) => {
+  if (!status) return 'Unknown';
+  
+  const statusLower = status.toLowerCase();
+  
+  const statusMap = {
+    'finished': 'Completed',
+    'running': 'In Progress',
+    'completed': 'Completed',
+    'in progress': 'In Progress',
+    'queued': 'Queued',
+    'failed': 'Failed'
+  };
+  
+  return statusMap[statusLower] || status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+};
+
+export default ScanTable;

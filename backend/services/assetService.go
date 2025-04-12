@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,6 +39,19 @@ var (
 	//Target ID - Scan Model
 	scansJsonMap = make(map[string]models.ScanJSONModel)
 )
+
+type ZapApiScanDetail struct {
+	ReqCount      string `json:"reqCount"`
+	AlertCount    string `json:"alertCount"`
+	Progress      string `json:"progress"`
+	NewAlertCount string `json:"newAlertCount"`
+	ID            string `json:"id"`
+	State         string `json:"state"`
+}
+
+type ZapApiScansResponse struct {
+	Scans []ZapApiScanDetail `json:"scans"`
+}
 
 // ZapAlertDetail mirrors the structure of a single alert from the ZAP /core/view/alerts endpoint
 type ZapAlertDetail struct {
@@ -990,6 +1004,136 @@ func (a *AssetService) FetchAndSaveZapFindingsByURL(baseURL string, userID uuid.
 	logger.Log.Infof("Transaction committed. Processed %d ZAP alerts, saved %d findings for scan %s.", len(zapResult.Alerts), len(savedFindings), latestScan.ID)
 
 	return savedFindings, nil
+}
+
+func (a *AssetService) ListZapScansForUser(userID uuid.UUID) ([]models.Scan, error) { // <-- Changed return type
+	logger.Log.Debugf("ListZapScansForUser called for user ID: %s", userID)
+
+	// 1. Get User's Company ID (No changes)
+	var user models.User
+	if err := database.DB.Select("company_id").First(&user, "id = ?", userID).Error; err != nil {
+		// ... (error handling as before)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			logger.Log.Warnf("User not found for ID %s in ListZapScansForUser", userID)
+			return nil, fmt.Errorf("user not found")
+		}
+		logger.Log.Errorf("Error fetching user %s for ListZapScansForUser: %v", userID, err)
+		return nil, fmt.Errorf("database error fetching user: %v", err)
+	}
+	companyID := user.CompanyID
+	if companyID == uuid.Nil {
+		logger.Log.Errorf("User %s has a nil CompanyID", userID)
+		return nil, fmt.Errorf("user is not associated with a company")
+	}
+	logger.Log.Debugf("Fetching ZAP scans for company ID: %s", companyID)
+
+	// 2. Fetch Scans from Database (No changes)
+	var dbScans []models.Scan // Use models.Scan directly
+	err := database.DB.Where("company_id = ? AND scanner = ?", companyID, "zap").
+		Order("created_at DESC").
+		Find(&dbScans).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		logger.Log.Errorf("Error fetching ZAP scans from database for company %s: %v", companyID, err)
+		return nil, fmt.Errorf("database error fetching scans: %v", err)
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		logger.Log.Infof("No ZAP scans found for company ID: %s", companyID)
+		return []models.Scan{}, nil // Return empty slice if none found
+	}
+
+	logger.Log.Debugf("Found %d ZAP scans in DB for company ID: %s", len(dbScans), companyID)
+
+	// 3. Get ZAP Settings (No changes)
+	scannerSetting, err := a.getUserScannerZAPSettings(userID)
+	if err != nil {
+		logger.Log.Warnf("Could not get ZAP scanner settings for user %s: %v. Proceeding without live statuses.", userID, err)
+		scannerSetting = nil
+	}
+
+	// 4. Fetch Live Scan Statuses from ZAP API (No changes)
+	zapStatusMap := make(map[string]ZapApiScanDetail)
+	if scannerSetting != nil {
+		endpoint := fmt.Sprintf("/JSON/ascan/view/scans/?apikey=%s", scannerSetting.APIKey)
+		logger.Log.Debugf("Fetching live ZAP scan statuses from: %s", endpoint)
+
+		resp, err := utils.SendGETRequestZap(endpoint, scannerSetting.APIKey, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
+		if err != nil {
+			logger.Log.Warnf("Failed to fetch live ZAP statuses: %v. Proceeding with DB statuses.", err)
+		} else {
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				var zapApiResponse ZapApiScansResponse
+				if err := json.NewDecoder(resp.Body).Decode(&zapApiResponse); err != nil {
+					logger.Log.Warnf("Failed to decode live ZAP statuses response: %v. Proceeding with DB statuses.", err)
+				} else {
+					for _, zapScan := range zapApiResponse.Scans {
+						zapStatusMap[zapScan.ID] = zapScan
+					}
+					logger.Log.Infof("Successfully fetched %d live scan statuses from ZAP.", len(zapStatusMap))
+				}
+			} else {
+				bodyBytes, _ := io.ReadAll(resp.Body)
+				logger.Log.Warnf("ZAP API /ascan/view/scans returned non-OK status: %d. Body: %s. Proceeding with DB statuses.", resp.StatusCode, string(bodyBytes))
+			}
+		}
+	} else {
+		logger.Log.Debugln("Skipping live ZAP status fetch because scanner settings are unavailable.")
+	}
+
+	// 5. Merge DB data with Live ZAP Statuses - Modify dbScans directly
+	for i := range dbScans {
+		scan := &dbScans[i]
+
+		// Reset progress for each scan before potentially setting it
+		scan.Progress = nil
+
+		// Check if we have a ZAP ID and live status data
+		if scan.ZapVulnScanID != "" {
+			if zapDetail, found := zapStatusMap[scan.ZapVulnScanID]; found {
+				// Found live status
+				progressVal, err := strconv.Atoi(zapDetail.Progress)
+				if err != nil {
+					logger.Log.Warnf("Could not parse progress '%s' for ZAP scan ID %s: %v", zapDetail.Progress, zapDetail.ID, err)
+					// Keep scan.Progress as nil
+				}
+
+				// Check if the scan is already in a terminal state in the DB
+				isTerminalDB := scan.Status == models.ScanStatusCompleted || scan.Status == models.ScanStatusFailed
+
+				var liveStatus string
+				mappedStatus, ok := models.ScanStatusMap[zapDetail.State] // Use the map for consistency
+				if ok {
+					liveStatus = mappedStatus
+				} else {
+					logger.Log.Warnf("Unmapped ZAP state '%s' encountered for ZAP scan %s", zapDetail.State, zapDetail.ID)
+					liveStatus = zapDetail.State // Use raw state if not mapped
+				}
+
+				// Update status and progress only if DB status is not terminal
+				if !isTerminalDB {
+					scan.Status = liveStatus // Update status directly on the scan object
+					if err == nil {          // Only set progress if parsing was successful
+						scan.Progress = &progressVal // Set the Progress field
+					}
+					logger.Log.Tracef("Updated scan %s (ZAP ID %s) with live status: %s (%d%%)", scan.ID, scan.ZapVulnScanID, scan.Status, progressVal)
+
+				} else {
+					logger.Log.Tracef("Live ZAP status for scan %s (ZAP ID %s) is %s, but DB status is terminal (%s). Keeping DB status.", scan.ID, scan.ZapVulnScanID, liveStatus, scan.Status)
+					// Optionally, still set progress if ZAP thinks it's running, even if DB says completed? Maybe not, keep it simple.
+					// If DB is Completed/Failed, don't show progress.
+				}
+			} else {
+				// ZAP ID exists in DB, but scan wasn't found in live ZAP API response. Trust DB status.
+				logger.Log.Tracef("Scan %s (ZAP ID %s) not found in live ZAP status response. Using DB status: %s", scan.ID, scan.ZapVulnScanID, scan.Status)
+			}
+		} else {
+			// No ZAP Vuln Scan ID in DB. Must rely on DB status.
+			logger.Log.Tracef("Scan %s has no ZAP Vuln Scan ID. Using DB status: %s", scan.ID, scan.Status)
+		}
+	} // End of loop modifying dbScans
+
+	logger.Log.Infof("Successfully prepared %d ZAP scans for user %s (company %s) with potentially merged statuses.", len(dbScans), userID, companyID)
+	return dbScans, nil // <-- Return the modified dbScans slice
 }
 
 // Lists semgrep deployments

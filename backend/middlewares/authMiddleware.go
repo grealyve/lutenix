@@ -37,7 +37,7 @@ func Authentication() gin.HandlerFunc {
 			return []byte(config.ConfigInstance.SECRET), nil
 		})
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token please log in"})
 			c.Abort()
 			return
 		}

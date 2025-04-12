@@ -69,6 +69,7 @@ func ZapRoutes(zapRoutes *gin.Engine) {
 
 	// Start scan (using dedicated endpoint)
 	zap.POST("/scans", scanController.ZapStartScan)
+	zap.GET("/scans", scanController.ListZapScans)
 
 	zap.GET("/alerts/:scan_id", scanController.ZapGetAlerts) // Get alerts for a scan
 	zap.GET("/alerts/detail/:alert_id", scanController.ZapGetAlertDetail)

@@ -306,6 +306,19 @@ func (sc *ScanController) ZapGetZapSpiderStatus(c *gin.Context) {
 	})
 }
 
+func (sc *ScanController) ListZapScans(c *gin.Context) {
+	logger.Log.Debugln("ListZapScans endpoint called")
+
+	sc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
+		scanList, err := sc.AssetService.ListZapScansForUser(userID)
+		if err != nil {
+			logger.Log.Errorf("Error fetching ZAP scan list in controller: %v", err)
+			return nil, err
+		}
+		return gin.H{"scans": scanList}, nil
+	})
+}
+
 // GetZapScanResultsByURL retrieves the latest completed scan results for a given target URL.
 func (sc *ScanController) GetZapScanResultsByURL(c *gin.Context) {
 	logger.Log.Debugln("GetZapScanResultsByURL endpoint called")

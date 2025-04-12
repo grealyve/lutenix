@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Container, Card } from 'react-bootstrap';
+import { useState, useEffect, useRef } from 'react';
+import { Container, Card, Modal, Form, Button, Alert } from 'react-bootstrap';
 import ScanTable from '../../components/ScanTable';
 
 const OwaspZapScans = () => {
@@ -10,58 +10,92 @@ const OwaspZapScans = () => {
     scannedAssets: 0,
     vulnerabilities: 0
   });
+  
+  // Modal states
+  const [showModal, setShowModal] = useState(false);
+  const [targetUrl, setTargetUrl] = useState('');
+  const [urlList, setUrlList] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [alertMessage, setAlertMessage] = useState(null);
+  const [alertType, setAlertType] = useState('success');
+  const fileInputRef = useRef(null);
 
-  // Fetch scan data on component mount
-  useEffect(() => {
-    // This would normally be an API call
-    // In this example, we're using mock data
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const mockData = [
-          { id: 1, target: 'https://google.com', critical: 1, high: 5, medium: 3, low: 9, information: 15 },
-          { id: 2, target: 'https://tesla.com', critical: 2, high: 7, medium: 14, low: 32, information: 8 },
-          { id: 3, target: 'https://n11.com', critical: 0, high: 7, medium: 6, low: 27, information: 11 },
-          { id: 4, target: 'https://trendyol.com', critical: 2, high: 3, medium: 0, low: 12, information: 0 },
-          { id: 5, target: 'https://hepsiburada.com', critical: 4, high: 4, medium: 1, low: 23, information: 20 },
-          { id: 6, target: 'https://sahibinden.com', critical: 6, high: 9, medium: 11, low: 44, information: 22 },
-          { id: 7, target: 'https://bim.com', critical: 1, high: 8, medium: 21, low: 75, information: 30 },
-          { id: 8, target: 'https://abdiiibrahim.com', critical: 0, high: 11, medium: 18, low: 21, information: 6 }
-        ];
-        
-        setScanData(mockData);
-        
-        // Calculate scan statistics
-        const totalAssets = mockData.length;
-        const totalVulnerabilities = mockData.reduce((acc, scan) => 
-          acc + scan.critical + scan.high + scan.medium + scan.low + scan.information, 0);
-          
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+           throw new Error('No authentication token found. Please log in.');
+        }
+        const response = await fetch('http://localhost:4040/api/v1/zap/scans', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+          }
+        });
+  
+        if (response.status === 401) {
+          console.error('Authentication failed (401). Token might be expired.');
+          //Clear the token and redirect to login
+          localStorage.removeItem('authToken');
+          history.push('/login');
+          throw new Error('Authentication failed. Please log in again.');
+        }
+  
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`);
+        }
+  
+        const responseData = await response.json();
+  
+        // Check if the expected structure is present
+        if (!responseData || !responseData.data || !Array.isArray(responseData.data.scans)) {
+          console.error("Unexpected API response structure:", responseData);
+          throw new Error("Received invalid data format from the server.");
+        }
+  
+        const formattedData = responseData.data.scans.map(scan => {
+          const createdDate = new Date(scan.createdAt);
+          const formattedDate = createdDate.toLocaleString('sv-SE', { 
+              year: 'numeric', month: '2-digit', day: '2-digit',
+              hour: '2-digit', minute: '2-digit', second: '2-digit'
+          });
+  
+          return {
+            id: scan.id,
+            target: scan.target,
+            status: scan.status,
+            createdAt: formattedDate
+          };
+        });
+  
+        setScanData(formattedData);
+  
+        const totalAssets = formattedData.length;
         setScanStats({
           scannedAssets: totalAssets,
-          vulnerabilities: totalVulnerabilities
+          vulnerabilities: 0
         });
-        
+  
+        setError(null);
         setIsLoading(false);
       } catch (err) {
-        setError('Failed to fetch scan data');
+        setError(`Failed to fetch scan data: ${err.message}`);
         setIsLoading(false);
         console.error('Error fetching scan data:', err);
       }
     };
-    
+
+  useEffect(() => {
     fetchData();
   }, []);
 
   const handleStartScan = () => {
-    // This would open a modal or navigate to a new scan form
-    alert('Start scan functionality would open a form to configure a new scan');
+    setShowModal(true);
   };
 
   const handleDeleteScan = (selectedScanIds) => {
-    // This would call an API to delete the selected scans
     if (window.confirm(`Are you sure you want to delete ${selectedScanIds.length} scan(s)?`)) {
       setScanData(scanData.filter(scan => !selectedScanIds.includes(scan.id)));
       alert(`Deleted ${selectedScanIds.length} scan(s)`);
@@ -69,8 +103,98 @@ const OwaspZapScans = () => {
   };
 
   const handleStopScan = (selectedScanIds) => {
-    // This would call an API to stop the selected scans
     alert(`Stopped ${selectedScanIds.length} scan(s)`);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setTargetUrl('');
+    setUrlList([]);
+    setAlertMessage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleAddUrl = () => {
+    if (targetUrl.trim() && !urlList.includes(targetUrl.trim())) {
+      setUrlList([...urlList, targetUrl.trim()]);
+      setTargetUrl('');
+    }
+  };
+
+  const handleRemoveUrl = (url) => {
+    setUrlList(urlList.filter(item => item !== url));
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      const urls = content.split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(line => line && !urlList.includes(line));
+      
+      if (urls.length > 0) {
+        setUrlList([...urlList, ...urls]);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleSubmitScan = async () => {
+    const urlsToScan = targetUrl.trim() 
+      ? [...urlList, targetUrl.trim()] 
+      : [...urlList];
+    
+    if (urlsToScan.length === 0) {
+      setAlertMessage('Please add at least one URL to scan');
+      setAlertType('danger');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setAlertMessage(null);
+
+    try {
+      for (const url of urlsToScan) {
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+           throw new Error('No authentication token found. Please log in.');
+        }
+        await fetch('http://localhost:4040/api/v1/zap/scans', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            target_url: url
+          })
+        });
+      }
+      
+      setAlertMessage(`Successfully initiated scan for ${urlsToScan.length} URL(s)`);
+      setAlertType('success');
+      
+      setTargetUrl('');
+      setUrlList([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      await fetchData();
+      
+    } catch (error) {
+      console.error('Error starting scan:', error);
+      setAlertMessage('Failed to start scan. Please try again.');
+      setAlertType('danger');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -87,16 +211,111 @@ const OwaspZapScans = () => {
           </Card.Body>
         </Card>
         
-        <ScanTable
-          title="OWASP ZAP Scans"
-          data={scanData}
-          onStartScan={handleStartScan}
-          onDeleteScan={handleDeleteScan}
-          onStopScan={handleStopScan}
-        />
+        {isLoading ? (
+          <div className="text-center p-5">
+            <div className="spinner-border text-primary" role="status">
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-2">Loading scan data...</p>
+          </div>
+        ) : error ? (
+          <Alert variant="danger">{error}</Alert>
+        ) : (
+          <ScanTable
+            title="OWASP ZAP Scans"
+            data={scanData}
+            onStartScan={handleStartScan}
+            onDeleteScan={handleDeleteScan}
+            onStopScan={handleStopScan}
+          />
+        )}
+        
+        {/* Scan Modal */}
+        <Modal show={showModal} onHide={handleCloseModal} backdrop="static" size="lg">
+          <Modal.Header closeButton>
+            <Modal.Title>Start New OWASP ZAP Scan</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {alertMessage && (
+              <Alert variant={alertType} onClose={() => setAlertMessage(null)} dismissible>
+                {alertMessage}
+              </Alert>
+            )}
+            
+            <Form>
+              <Form.Group className="mb-3">
+                <Form.Label>Target URL</Form.Label>
+                <div className="d-flex">
+                  <Form.Control 
+                    type="url" 
+                    placeholder="https://example.com" 
+                    value={targetUrl}
+                    onChange={(e) => setTargetUrl(e.target.value)}
+                  />
+                  <Button 
+                    variant="primary" 
+                    className="ms-2" 
+                    onClick={handleAddUrl}
+                    disabled={!targetUrl.trim()}
+                  >
+                    Add
+                  </Button>
+                </div>
+                <Form.Text className="text-muted">
+                  Enter a URL to scan or add multiple URLs
+                </Form.Text>
+              </Form.Group>
+              
+              <Form.Group className="mb-3">
+                <Form.Label>Upload URL List</Form.Label>
+                <Form.Control 
+                  type="file" 
+                  accept=".txt"
+                  onChange={handleFileUpload}
+                  ref={fileInputRef}
+                />
+                <Form.Text className="text-muted">
+                  Upload a .txt file with one URL per line
+                </Form.Text>
+              </Form.Group>
+              
+              {urlList.length > 0 && (
+                <div className="mb-3">
+                  <Form.Label>URLs to scan ({urlList.length})</Form.Label>
+                  <div className="border rounded p-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                    {urlList.map((url, index) => (
+                      <div key={index} className="d-flex justify-content-between align-items-center mb-1 p-1 bg-light rounded">
+                        <span>{url}</span>
+                        <Button 
+                          variant="outline-danger" 
+                          size="sm"
+                          onClick={() => handleRemoveUrl(url)}
+                        >
+                          &times;
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Form>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={handleCloseModal}>
+              Cancel
+            </Button>
+            <Button 
+              variant="primary" 
+              onClick={handleSubmitScan}
+              disabled={isSubmitting || (urlList.length === 0 && !targetUrl.trim())}
+            >
+              {isSubmitting ? 'Starting...' : 'Start Scan'}
+            </Button>
+          </Modal.Footer>
+        </Modal>
       </Container>
     </div>
   );
 };
 
-export default OwaspZapScans; 
+export default OwaspZapScans;
