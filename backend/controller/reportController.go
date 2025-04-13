@@ -18,15 +18,20 @@ type ReportController struct {
 }
 
 func NewReportController() *ReportController {
+	userService := &services.UserService{}
+	scanService := &services.ScanService{}
+	assetService := &services.AssetService{}
+	reportService := services.NewReportService(userService, scanService, assetService)
+	
 	return &ReportController{
-		ReportService: &services.ReportService{},
-		UserService:   &services.UserService{},
+		ReportService: reportService,
+		UserService:   userService,
 	}
 }
 
 type GenerateZapReportRequest struct {
-	Title       string `json:"title" binding:"required"`
-	TargetSites string `json:"target_sites" binding:"required"`
+	Title string   `json:"title" binding:"required"`
+	Sites []string `json:"sites" binding:"required"`
 }
 
 func (rc *ReportController) CreateReport(c *gin.Context) {
@@ -64,7 +69,7 @@ func (rc *ReportController) CreateReport(c *gin.Context) {
 	// Raporu veritabanına kaydet
 	report := models.Report{
 		CompanyID:    user.CompanyID,
-		ScanID:       uuid.MustParse(request.ScanIDs[0]), // İlk scan ID'yi kullan
+		ScanID:       uuid.MustParse(request.ScanIDs[0]),
 		DownloadLink: downloadLink,
 		ReportType:   "acunetix",
 	}
@@ -117,6 +122,12 @@ func (rc *ReportController) GenerateZAPReport(c *gin.Context) {
 	}
 	logger.Log.Debugf("[%s] Request body validated: %+v", logTag, request)
 
+	if len(request.Sites) == 0 {
+		logger.Log.Errorf("[%s] No target sites provided", logTag)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "At least one target site must be provided"})
+		return
+	}
+
 	_, errUser := rc.UserService.GetUserByID(userID)
 	if errUser != nil {
 		logger.Log.Warnf("[%s] User not found for ID %s", logTag, userID)
@@ -127,6 +138,7 @@ func (rc *ReportController) GenerateZAPReport(c *gin.Context) {
 	reportPath, err := rc.ReportService.GenerateZAPReport(
 		userID,
 		request.Title,
+		request.Sites,
 	)
 
 	if err != nil {
@@ -141,7 +153,6 @@ func (rc *ReportController) GenerateZAPReport(c *gin.Context) {
 		return
 	}
 
-	// Başarılı yanıt
 	logger.Log.Infof("[%s] ZAP report generated successfully for UserID %s. Path: %s", logTag, userID, reportPath)
 	c.JSON(http.StatusOK, gin.H{
 		"message":     "ZAP report generation request successful",

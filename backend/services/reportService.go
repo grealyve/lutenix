@@ -6,9 +6,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/grealyve/lutenix/database"
 	"github.com/grealyve/lutenix/logger"
 	"github.com/grealyve/lutenix/models"
 	"github.com/grealyve/lutenix/utils"
@@ -17,17 +20,24 @@ import (
 var (
 	reportsResponseModel = models.ReportsResponsePage{}
 	groupNameReportIdMap = make(map[string]models.ReportResponse)
+	reportPathPrefix     = "./reports/"
 )
 
 const template_id = "11111111-1111-1111-1111-111111111111"
 
+// ReportService handles report generation and management
 type ReportService struct {
 	AssetService *AssetService
+	UserService  *UserService
+	ScanService  *ScanService
 }
 
-func (r *ReportService) NewReportService() *ReportService {
+// NewReportService creates a new report service with the given dependencies
+func NewReportService(userService *UserService, scanService *ScanService, assetService *AssetService) *ReportService {
 	return &ReportService{
-		AssetService: &AssetService{},
+		UserService:  userService,
+		ScanService:  scanService,
+		AssetService: assetService,
 	}
 }
 
@@ -119,19 +129,21 @@ func (r *ReportService) GetReportDownloadLinkAcunetix(groupName string) (string,
 
 /*
 Report Generate ZAP
-http://localhost:8081/JSON/reports/action/generate/?apikey=6f1ebonoa9980csb8ls2895rl0&title=test&template=modern&theme=&description=&contexts=&sites=http%3A%2F%2Fabdiibrahim.com&sections=&includedConfidences=&includedRisks=&reportFileName=&reportFileNamePattern=&reportDir=&display=
+/JSON/reports/action/generate/?apikey=6f1ebonoa9980csb8ls2895rl0&title=test&template=modern&theme=&description=&contexts=&sites=http://lutenix.com|http://hedef.com&sections=&includedConfidences=&includedRisks=&reportFileName=&reportFileNamePattern=&reportDir=&display=
 
 Result:
 {
-  "generate": "C:\\Users\\Grealyve\\2025-02-03-ZAP-Report-abdiibrahim.com.html"
+	"generate":"C:\\Users\\Grealyve\\2025-04-13-ZAP-Report-lutenix.com.html"
 }
 */
 
-func (r *ReportService) GenerateZAPReport(userID uuid.UUID, targetSites string) (string, error) {
+func (r *ReportService) GenerateZAPReport(userID uuid.UUID, title string, targetSites []string) (string, error) {
 	logTag := "GenerateZAPReport"
-	logger.Log.Debugf("[%s] Called for UserID: %s, Sites: %s", logTag, userID, targetSites)
+	logger.Log.Debugf("[%s] Called for UserID: %s, Title: %s, Sites: %v", logTag, userID, title, targetSites)
 
-	// 1. ZAP Ayarlarını Al
+	joinedSites := strings.Join(targetSites, "|")
+	logger.Log.Debugf("[%s] Joined sites: %s", logTag, joinedSites)
+
 	scannerSetting, err := r.AssetService.getUserScannerZAPSettings(userID)
 	if err != nil {
 		logger.Log.Errorf("[%s] Error getting ZAP settings for UserID %s: %v", logTag, userID, err)
@@ -141,7 +153,11 @@ func (r *ReportService) GenerateZAPReport(userID uuid.UUID, targetSites string) 
 
 	queryParams := url.Values{}
 	queryParams.Add("apikey", scannerSetting.APIKey)
-	queryParams.Add("sites", targetSites) // Birden fazla site virgülle ayrılmış olmalı
+	queryParams.Add("title", title)
+	queryParams.Add("template", "modern")
+	queryParams.Add("sites", joinedSites)
+	queryParams.Add("display", "true")
+	queryParams.Add("reportFileName", title)
 
 	endpointPath := "/JSON/reports/action/generate/"
 	fullURL := fmt.Sprintf("%s:%d%s", scannerSetting.ScannerURL, scannerSetting.ScannerPort, endpointPath)
@@ -184,5 +200,34 @@ func (r *ReportService) GenerateZAPReport(userID uuid.UUID, targetSites string) 
 	}
 
 	logger.Log.Infof("[%s] ZAP report generated successfully at: %s", logTag, result.Generate)
+
+	// Get the user to find their company ID
+	user, err := r.UserService.GetUserByID(userID)
+	if err != nil {
+		logger.Log.Warnf("[%s] Error getting user for UserID %s: %v - Cannot save report to database", logTag, userID, err)
+		return result.Generate, nil
+	}
+
+	// Get active scan for the user
+	scan, err := r.ScanService.GetActiveScanByUserID(userID)
+	if err != nil {
+		logger.Log.Warnf("[%s] Error getting active scan for UserID %s: %v - Cannot save report to database", logTag, userID, err)
+		return result.Generate, nil
+	}
+
+	// Save report to database
+	report := models.Report{
+		ScanID:       scan.ID,
+		CompanyID:    user.CompanyID,
+		DownloadLink: result.Generate,
+		ReportType:   "ZAP",
+	}
+
+	if err := database.DB.Create(&report).Error; err != nil {
+		logger.Log.Warnf("[%s] Error saving report to database: %v - Report generated but not saved", logTag, err)
+		return result.Generate, nil
+	}
+
+	logger.Log.Infof("[%s] Report saved to database with ID: %s", logTag, report.ID)
 	return result.Generate, nil
 }
