@@ -22,7 +22,63 @@ const OwaspZapGenerateReport = () => {
   const [alertVariant, setAlertVariant] = useState('success');
   const [alertMessage, setAlertMessage] = useState('');
 
-  const handleGenerateReport = (event) => {
+  const generateReport = async (title, sites) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in.');
+      }
+      
+      const response = await fetch('http://localhost:4040/api/v1/zap/report', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          sites
+        })
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          throw new Error('Authentication expired. Please log in again.');
+        }
+        
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      setAlertVariant('success');
+      setAlertMessage(`Report "${title}" is being generated. You will be notified when it's ready.`);
+      setShowAlert(true);
+      
+      // Reset form after successful submission
+      if (title === reportName) {
+        setReportName('');
+        setUrls('');
+        setValidated(false);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error generating report:', error);
+      setAlertVariant('danger');
+      setAlertMessage(error.message || 'Failed to generate report. Please try again.');
+      setShowAlert(true);
+      
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateReport = async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     
@@ -35,29 +91,26 @@ const OwaspZapGenerateReport = () => {
     setValidated(true);
     setLoading(true);
     
-    setTimeout(() => {
-      console.log('Generating OWASP ZAP report with:', { reportName, urls: urls.split(',').map(url => url.trim()) });
-      setAlertVariant('success');
-      setAlertMessage(`Report "${reportName}" is being generated. You will be notified when it's ready.`);
-      setShowAlert(true);
-      setLoading(false);
-      
-      setReportName('');
-      setUrls('');
-      setValidated(false);
-    }, 2000);
+    // Parse URLs from comma-separated string to array
+    const sitesArray = urls.split(',').map(url => url.trim()).filter(url => url);
+    
+    try {
+      await generateReport(reportName, sitesArray);
+    } catch (error) {
+      // Error is already handled in generateReport function
+    }
   };
 
-  const handleGenerateForAll = () => {
+  const handleGenerateForAll = async () => {
     setLoading(true);
     
-    setTimeout(() => {
-      console.log('Generating OWASP ZAP report for all assets');
-      setAlertVariant('success');
-      setAlertMessage('A comprehensive report for all assets is being generated. You will be notified when it\'s ready.');
-      setShowAlert(true);
-      setLoading(false);
-    }, 2000);
+    try {
+      // For "all assets" we're sending an empty sites array
+      // The backend should interpret this as "scan all assets"
+      await generateReport('Comprehensive Security Scan', []);
+    } catch (error) {
+      // Error is already handled in generateReport function
+    }
   };
 
   return (
@@ -154,59 +207,8 @@ const OwaspZapGenerateReport = () => {
                         </>
                       )}
                     </Button>
-                    
-                    <Button 
-                      variant="outline-primary" 
-                      size="lg"
-                      onClick={handleGenerateForAll}
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <>
-                          <Spinner
-                            as="span"
-                            animation="border"
-                            size="sm"
-                            role="status"
-                            aria-hidden="true"
-                            className="me-2"
-                          />
-                          Generating...
-                        </>
-                      ) : (
-                        'Generate Report for All Assets'
-                      )}
-                    </Button>
                   </div>
                 </Form>
-              </Card.Body>
-            </Card>
-            
-            <Card className="border-0 shadow-sm mt-4">
-              <Card.Body className="p-4">
-                <h3 className="fs-5 mb-3">Recently Generated Reports</h3>
-                <div className="d-flex align-items-center p-3 border-bottom">
-                  <FaFileAlt className="text-primary me-3" size={24} />
-                  <div>
-                    <h6 className="mb-0">Main Website Security Scan</h6>
-                    <small className="text-muted">Generated 3 hours ago</small>
-                  </div>
-                  <Badge bg="danger" className="mx-2">18 issues</Badge>
-                  <Button variant="outline-primary" size="sm" className="ms-auto">
-                    View
-                  </Button>
-                </div>
-                <div className="d-flex align-items-center p-3">
-                  <FaFileAlt className="text-primary me-3" size={24} />
-                  <div>
-                    <h6 className="mb-0">API Endpoints Security Assessment</h6>
-                    <small className="text-muted">Generated yesterday</small>
-                  </div>
-                  <Badge bg="warning" className="mx-2">7 issues</Badge>
-                  <Button variant="outline-primary" size="sm" className="ms-auto">
-                    View
-                  </Button>
-                </div>
               </Card.Body>
             </Card>
           </Col>
