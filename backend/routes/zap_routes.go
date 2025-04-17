@@ -35,4 +35,5 @@ func ZapRoutes(router *gin.Engine) {
 	zap.GET("/findings", zapController.GetAllUserFindings)
 
 	zap.POST("/report", reportController.GenerateZAPReport)
+	zap.GET("/reports", reportController.GetZAPReports)
 }

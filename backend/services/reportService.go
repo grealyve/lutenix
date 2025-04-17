@@ -208,16 +208,9 @@ func (r *ReportService) GenerateZAPReport(userID uuid.UUID, title string, target
 		return result.Generate, nil
 	}
 
-	// Get active scan for the user
-	scan, err := r.ScanService.GetActiveScanByUserID(userID)
-	if err != nil {
-		logger.Log.Warnf("[%s] Error getting active scan for UserID %s: %v - Cannot save report to database", logTag, userID, err)
-		return result.Generate, nil
-	}
-
 	// Save report to database
 	report := models.Report{
-		ScanID:       scan.ID,
+		Name:         title,
 		CompanyID:    user.CompanyID,
 		DownloadLink: result.Generate,
 		ReportType:   "ZAP",
@@ -230,4 +223,25 @@ func (r *ReportService) GenerateZAPReport(userID uuid.UUID, title string, target
 
 	logger.Log.Infof("[%s] Report saved to database with ID: %s", logTag, report.ID)
 	return result.Generate, nil
+}
+
+func (r *ReportService) GetZAPReports(userID uuid.UUID) ([]models.Report, error) {
+	logTag := "GetZAPReports"
+	logger.Log.Debugf("[%s] Getting ZAP reports for user ID: %s", logTag, userID)
+
+	// Get the user to find their company ID
+	user, err := r.UserService.GetUserByID(userID)
+	if err != nil {
+		logger.Log.Errorf("[%s] Error getting user for UserID %s: %v", logTag, userID, err)
+		return nil, fmt.Errorf("user not found: %w", err)
+	}
+
+	var reports []models.Report
+	if err := database.DB.Where("company_id = ? AND report_type = ?", user.CompanyID, "ZAP").Find(&reports).Error; err != nil {
+		logger.Log.Errorf("[%s] Error retrieving ZAP reports: %v", logTag, err)
+		return nil, fmt.Errorf("failed to retrieve ZAP reports: %w", err)
+	}
+
+	logger.Log.Infof("[%s] Successfully retrieved %d ZAP reports for user %s", logTag, len(reports), userID)
+	return reports, nil
 }

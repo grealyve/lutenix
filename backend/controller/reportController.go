@@ -38,7 +38,7 @@ func (rc *ReportController) CreateReport(c *gin.Context) {
 	userID := c.MustGet("userID").(uuid.UUID)
 
 	var request struct {
-		ScanIDs []string `json:"scan_ids" binding:"required"`
+		ScanUrls []string `json:"scan_urls" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -56,7 +56,7 @@ func (rc *ReportController) CreateReport(c *gin.Context) {
 	}
 
 	// Rapor oluştur
-	rc.ReportService.CreateAcunetixReport(request.ScanIDs, userID)
+	rc.ReportService.CreateAcunetixReport(request.ScanUrls, userID)
 
 	// Rapor indirme linkini al
 	downloadLink, err := rc.ReportService.GetReportDownloadLinkAcunetix(user.CompanyID.String())
@@ -69,7 +69,6 @@ func (rc *ReportController) CreateReport(c *gin.Context) {
 	// Raporu veritabanına kaydet
 	report := models.Report{
 		CompanyID:    user.CompanyID,
-		ScanID:       uuid.MustParse(request.ScanIDs[0]),
 		DownloadLink: downloadLink,
 		ReportType:   "acunetix",
 	}
@@ -158,4 +157,28 @@ func (rc *ReportController) GenerateZAPReport(c *gin.Context) {
 		"message":     "ZAP report generation request successful",
 		"report_path": reportPath,
 	})
+}
+
+func (rc *ReportController) GetZAPReports(c *gin.Context) {
+	logTag := "Controller.GetZAPReports"
+	logger.Log.Debugf("[%s] Endpoint called", logTag)
+
+	userID := c.MustGet("userID").(uuid.UUID)
+	logger.Log.Debugf("[%s] Called for UserID: %s", logTag, userID)
+
+	reports, err := rc.ReportService.GetZAPReports(userID)
+	if err != nil {
+		logger.Log.Errorf("[%s] Error retrieving ZAP reports: %v", logTag, err)
+		
+		if strings.Contains(err.Error(), "user not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+			return
+		}
+		
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve ZAP reports: " + err.Error()})
+		return
+	}
+	
+	logger.Log.Infof("[%s] Successfully retrieved %d ZAP reports for UserID %s", logTag, len(reports), userID)
+	c.JSON(http.StatusOK, gin.H{"reports": reports})
 }
