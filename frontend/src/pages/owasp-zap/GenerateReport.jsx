@@ -55,7 +55,7 @@ const OwaspZapGenerateReport = () => {
       const data = await response.json();
       
       setAlertVariant('success');
-      setAlertMessage(`Report "${title}" is being generated. You will be notified when it's ready.`);
+      setAlertMessage(`${data.message}. Report path: ${data.report_path}`);
       setShowAlert(true);
       
       // Reset form after successful submission
@@ -97,7 +97,6 @@ const OwaspZapGenerateReport = () => {
     try {
       await generateReport(reportName, sitesArray);
     } catch (error) {
-      // Error is already handled in generateReport function
     }
   };
 
@@ -105,11 +104,8 @@ const OwaspZapGenerateReport = () => {
     setLoading(true);
     
     try {
-      // For "all assets" we're sending an empty sites array
-      // The backend should interpret this as "scan all assets"
       await generateReport('Comprehensive Security Scan', []);
     } catch (error) {
-      // Error is already handled in generateReport function
     }
   };
 

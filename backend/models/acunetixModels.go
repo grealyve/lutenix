@@ -177,10 +177,11 @@ type AllScans struct {
 			Progress       int    `json:"progress"`
 			ScanSessionID  string `json:"scan_session_id"`
 			SeverityCounts struct {
-				High   int `json:"high"`
-				Info   int `json:"info"`
-				Low    int `json:"low"`
-				Medium int `json:"medium"`
+				Critical int `json:"critical"`
+				High     int `json:"high"`
+				Info     int `json:"info"`
+				Low      int `json:"low"`
+				Medium   int `json:"medium"`
 			} `json:"severity_counts"`
 			StartDate time.Time `json:"start_date"`
 			Status    string    `json:"status"`
@@ -312,4 +313,78 @@ type DeleteGroups struct {
 
 type DeleteTargets struct {
 	TargetIDList []string `json:"target_id_list"`
+}
+
+type AcunetixTargets struct {
+	Targets []struct {
+		Address                  string      `json:"address"`
+		Agents                   interface{} `json:"agents"`
+		ContinuousMode           bool        `json:"continuous_mode"`
+		Criticality              int         `json:"criticality"`
+		DefaultOverrides         interface{} `json:"default_overrides"`
+		DefaultScanningProfileID interface{} `json:"default_scanning_profile_id"`
+		DeletedAt                interface{} `json:"deleted_at"`
+		Description              string      `json:"description"`
+		Fqdn                     string      `json:"fqdn"`
+		FqdnHash                 string      `json:"fqdn_hash"`
+		FqdnStatus               string      `json:"fqdn_status"`
+		FqdnTmHash               string      `json:"fqdn_tm_hash"`
+		IssueTrackerID           interface{} `json:"issue_tracker_id"`
+		LastScanDate             interface{} `json:"last_scan_date"`
+		LastScanID               interface{} `json:"last_scan_id"`
+		LastScanSessionID        interface{} `json:"last_scan_session_id"`
+		LastScanSessionStatus    interface{} `json:"last_scan_session_status"`
+		ManualIntervention       interface{} `json:"manual_intervention"`
+		SeverityCounts           struct {
+			Critical int `json:"critical"`
+			High     int `json:"high"`
+			Info     int `json:"info"`
+			Low      int `json:"low"`
+			Medium   int `json:"medium"`
+		} `json:"severity_counts"`
+		TargetID     string      `json:"target_id"`
+		Threat       int         `json:"threat"`
+		Type         interface{} `json:"type"`
+		Verification interface{} `json:"verification"`
+	} `json:"targets"`
+	Pagination struct {
+		Count      int           `json:"count"`
+		CursorHash string        `json:"cursor_hash"`
+		Cursors    []interface{} `json:"cursors"`
+		Sort       interface{}   `json:"sort"`
+	} `json:"pagination"`
+}
+
+type AcunetixVulnerabilities struct {
+	Vulnerabilities []struct {
+		AffectsDetail     string      `json:"affects_detail"`
+		AffectsURL        string      `json:"affects_url"`
+		APIOperationID    interface{} `json:"api_operation_id"`
+		APIType           interface{} `json:"api_type"`
+		App               string      `json:"app"`
+		Archived          bool        `json:"archived"`
+		Confidence        int         `json:"confidence"`
+		Continuous        bool        `json:"continuous"`
+		Criticality       int         `json:"criticality"`
+		IssueID           interface{} `json:"issue_id"`
+		IssueTrackerID    interface{} `json:"issue_tracker_id"`
+		LastSeen          time.Time   `json:"last_seen"`
+		PluginInstanceID  interface{} `json:"plugin_instance_id"`
+		Severity          int         `json:"severity"`
+		Status            string      `json:"status"`
+		Tags              []string    `json:"tags"`
+		TargetDescription string      `json:"target_description"`
+		TargetID          string      `json:"target_id"`
+		VtCreated         interface{} `json:"vt_created"`
+		VtID              string      `json:"vt_id"`
+		VtName            string      `json:"vt_name"`
+		VtUpdated         interface{} `json:"vt_updated"`
+		VulnID            string      `json:"vuln_id"`
+	} `json:"vulnerabilities"`
+	Pagination struct {
+		Count      int           `json:"count"`
+		CursorHash string        `json:"cursor_hash"`
+		Cursors    []string `json:"cursors"`
+		Sort       interface{}   `json:"sort"`
+	} `json:"pagination"`
 }

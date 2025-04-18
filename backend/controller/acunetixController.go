@@ -52,11 +52,7 @@ func (ac *AcunetixController) AcunetixGetAllTargets(c *gin.Context) {
 			return nil, err
 		}
 
-		targetList := make([]map[string]string, 0, len(targets))
-		for address, targetID := range targets {
-			targetList = append(targetList, map[string]string{"address": address, "target_id": targetID})
-		}
-		return targetList, nil
+		return targets, nil
 	})
 }
 
@@ -72,7 +68,6 @@ func (ac *AcunetixController) AcunetixAddTarget(c *gin.Context) {
 
 	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
 		ac.AssetService.AddAcunetixTarget(request.TargetURL, userID)
-		// Note: Target addition is likely asynchronous.
 		return gin.H{"message": "Target addition request sent"}, nil
 	})
 }
@@ -80,11 +75,12 @@ func (ac *AcunetixController) AcunetixAddTarget(c *gin.Context) {
 // AcunetixGetAllScans fetches and processes all Acunetix scan data for the user.
 func (ac *AcunetixController) AcunetixGetAllScans(c *gin.Context) {
 	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
-		err := ac.AssetService.GetAllAcunetixScan(userID)
+		scanList, err := ac.AssetService.GetAllAcunetixScan(userID)
 		if err != nil {
 			return nil, err
 		}
-		return gin.H{"message": "Scan data fetched and processed"}, nil
+
+		return scanList, nil
 	})
 }
 
@@ -129,5 +125,17 @@ func (ac *AcunetixController) AcunetixGetAllTargetsNotScanned(c *gin.Context) {
 			targetList = append(targetList, map[string]string{"address": address, "target_id": targetID})
 		}
 		return targetList, nil
+	})
+}
+
+// AcunetixGetAllVulnerabilities retrieves all Acunetix vulnerabilities.
+func (ac *AcunetixController) AcunetixGetAllVulnerabilities(c *gin.Context) {
+	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
+		vulnerabilities, err := ac.AssetService.GetAllVulnerabilitiesAcunetix(userID)
+		if err != nil {
+			return nil, err
+		}
+
+		return vulnerabilities, nil
 	})
 }

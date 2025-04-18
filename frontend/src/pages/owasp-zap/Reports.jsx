@@ -10,6 +10,7 @@ const OwaspZapReports = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedReports, setSelectedReports] = useState([]);
+  const [error, setError] = useState(null);
   
   const itemsPerPage = 8;
 
@@ -17,124 +18,53 @@ const OwaspZapReports = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        const token = localStorage.getItem('auth_token');
         
-        const mockData = [
-          {
-            id: 1,
-            name: 'Web Application Scan - Main Website',
-            date: '2023-05-15',
-            status: 'Completed',
-            findings: 18,
-            format: 'HTML',
-            description: 'Full scan of the main website including all endpoints'
+        if (!token) {
+          setError('Authentication token not found');
+          setLoading(false);
+          return;
+        }
+        
+        const response = await fetch('http://localhost:4040/api/v1/zap/reports', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
           },
-          {
-            id: 2,
-            name: 'API Security Scan - REST Endpoints',
-            date: '2023-05-12',
-            status: 'Completed',
-            findings: 7,
-            format: 'HTML',
-            description: 'Security assessment of all REST API endpoints'
-          },
-          {
-            id: 3,
-            name: 'Authentication Portal Scan',
-            date: '2023-05-09',
-            status: 'Completed',
-            findings: 9,
-            format: 'HTML',
-            description: 'Security scan of the user authentication portal'
-          },
-          {
-            id: 4,
-            name: 'E-commerce Checkout Flow Scan',
-            date: '2023-05-05',
-            status: 'Completed',
-            findings: 11,
-            format: 'HTML',
-            description: 'Security assessment of the checkout process'
-          },
-          {
-            id: 5,
-            name: 'Admin Panel Security Scan',
-            date: '2023-05-01',
-            status: 'Completed',
-            findings: 14,
-            format: 'HTML',
-            description: 'Security scan of administrative interfaces'
-          },
-          {
-            id: 6,
-            name: 'User Registration Vulnerability Scan',
-            date: '2023-04-28',
-            status: 'Completed',
-            findings: 6,
-            format: 'HTML',
-            description: 'Focused scan on user registration functionality'
-          },
-          {
-            id: 7,
-            name: 'Payment Gateway Integration Scan',
-            date: '2023-04-25',
-            status: 'Completed',
-            findings: 8,
-            format: 'HTML',
-            description: 'Security assessment of payment processing systems'
-          },
-          {
-            id: 8,
-            name: 'Content Management System Scan',
-            date: '2023-04-22',
-            status: 'Completed',
-            findings: 12,
-            format: 'HTML',
-            description: 'Security scan of the CMS and content editing interfaces'
-          },
-          {
-            id: 9,
-            name: 'Search Functionality Security Scan',
-            date: '2023-04-18',
-            status: 'Completed',
-            findings: 5,
-            format: 'HTML',
-            description: 'Assessment of search features for injection vulnerabilities'
-          },
-          {
-            id: 10,
-            name: 'File Upload Security Assessment',
-            date: '2023-04-15',
-            status: 'Completed',
-            findings: 10,
-            format: 'HTML',
-            description: 'Security scan of file upload functionality'
-          },
-          {
-            id: 11,
-            name: 'Session Management Security Scan',
-            date: '2023-04-12',
-            status: 'Completed',
-            findings: 7,
-            format: 'HTML',
-            description: 'Assessment of session handling mechanisms'
-          },
-          {
-            id: 12,
-            name: 'API Authentication Scan',
-            date: '2023-04-08',
-            status: 'Completed',
-            findings: 9,
-            format: 'HTML',
-            description: 'Security assessment of API authentication mechanisms'
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('auth_token');
+            setError('Authentication failed. Please login again.');
+          } else {
+            setError(`Error fetching reports: ${response.status}`);
           }
-        ];
+          setLoading(false);
+          return;
+        }
         
-        setReports(mockData);
-        setFilteredReports(mockData);
-        setLoading(false);
+        const data = await response.json();
+        
+        // Transform API data to match the expected format
+        const formattedReports = data.reports.map(report => ({
+          id: report.id,
+          name: report.name,
+          date: new Date(report.created_at).toLocaleDateString(),
+          status: 'Completed',
+          format: 'HTML',
+          download_link: report.download_link,
+          report_type: report.report_type
+        }));
+        
+        setReports(formattedReports);
+        setFilteredReports(formattedReports);
+        setError(null);
       } catch (error) {
         console.error('Error fetching reports:', error);
+        setError('Failed to fetch reports. Please try again later.');
+      } finally {
         setLoading(false);
       }
     };
@@ -147,8 +77,7 @@ const OwaspZapReports = () => {
     
     if (searchTerm) {
       results = results.filter(report =>
-        report.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        report.description.toLowerCase().includes(searchTerm.toLowerCase())
+        report.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
@@ -244,10 +173,22 @@ const OwaspZapReports = () => {
     console.log('Delete reports clicked:', selectedReports);
   };
   
+  const handleDownloadReport = (download_link) => {
+    console.log('Download report:', download_link);
+    // Implement download functionality based on download_link
+  };
+  
   return (
     <div className="page-content">
       <Container fluid>
         <h1 className="mb-4">OWASP ZAP Reports</h1>
+        
+        {/* Error message if any */}
+        {error && (
+          <div className="alert alert-danger" role="alert">
+            {error}
+          </div>
+        )}
         
         {/* Action Buttons */}
         <div className="mb-4">
@@ -334,7 +275,7 @@ const OwaspZapReports = () => {
                     <th>Report Name</th>
                     <th style={{ width: '120px' }}>Date</th>
                     <th style={{ width: '100px' }}>Status</th>
-                    <th style={{ width: '100px' }}>Findings</th>
+                    <th style={{ width: '100px' }}>Type</th>
                     <th style={{ width: '150px' }}>Download Link</th>
                     <th style={{ width: '80px' }}>Actions</th>
                   </tr>
@@ -371,10 +312,14 @@ const OwaspZapReports = () => {
                             {report.status}
                           </Badge>
                         </td>
-                        <td className="text-center">{report.findings}</td>
+                        <td className="text-center">{report.report_type}</td>
                         <td className="text-center">
-                          <Button variant="outline-primary" size="sm">
-                            <FaFileDownload className="me-1" /> {report.format}
+                          <Button 
+                            variant="outline-primary" 
+                            size="sm"
+                            onClick={() => handleDownloadReport(report.download_link)}
+                          >
+                            <FaFileDownload className="me-1" /> HTML
                           </Button>
                         </td>
                         <td>
