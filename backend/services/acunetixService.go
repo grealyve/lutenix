@@ -28,13 +28,25 @@ var (
 	targetIdScanIdMap = make(map[string]string)
 	//Target ID - Scan Model
 	scansJsonMap = make(map[string]models.ScanJSONModel)
+
+	//Scan URL - Severity
+	scanUrlSeverityMap = make(map[string]SeverityCounts)
 )
 
+type SeverityCounts struct {
+	Critical int `json:"critical"`
+	High     int `json:"high"`
+	Info     int `json:"info"`
+	Low      int `json:"low"`
+	Medium   int `json:"medium"`
+}
+
 // Fetches Target data from the Acunetix server.
-func (a *AssetService) GetAllAcunetixTargets(userID uuid.UUID) (map[string]string, error) {
+func (a *AssetService) GetAllAcunetixTargets(userID uuid.UUID) (models.AcunetixTargets, error) {
 	logger.Log.Debugf("GetAllAcunetixTargets called for user ID: %s", userID) // Debug: Entry Point
 	assetUrlTargetIdMap := make(map[string]string)
 	cursor := ""
+	var acunetixTargets models.AcunetixTargets
 
 	for {
 		endpoint := "/api/v1/targets?l=99"
@@ -46,48 +58,32 @@ func (a *AssetService) GetAllAcunetixTargets(userID uuid.UUID) (map[string]strin
 		resp, err := utils.SendGETRequestAcunetix(endpoint, userID)
 		if err != nil {
 			logger.Log.Errorln("Request error:", err)
-			return nil, err
+			return models.AcunetixTargets{}, err
 		}
 		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			logger.Log.Errorln("Error reading response body:", err)
-			return nil, err
+			return models.AcunetixTargets{}, err
 		}
 
 		var response models.Response
 		err = json.Unmarshal(body, &response)
 		if err != nil {
 			logger.Log.Errorln("Error unmarshalling response:", err)
-			return nil, err
+			return models.AcunetixTargets{}, err
+		}
+
+		err = json.Unmarshal(body, &acunetixTargets)
+		if err != nil {
+			logger.Log.Errorln("Error unmarshalling response:", err)
+			return models.AcunetixTargets{}, err
 		}
 
 		for _, target := range response.Targets {
 			logger.Log.Debugf("Acunetix target found: Address=%s, TargetID=%s", target.Address, target.TargetID)
 			assetUrlTargetIdMap[target.Address] = target.TargetID
-
-			scanModel := models.Scan{
-				TargetURL: target.Address,
-				Scanner:   "acunetix",
-				Status:    models.ScanStatusPending,
-			}
-
-			var existingScan models.Scan
-			result := DB.Where("target_url = ? AND scanner = ?", target.Address, "acunetix").First(&existingScan)
-
-			if result.Error == nil {
-				logger.Log.Debugf("Updating existing scan for target: %s", target.Address)
-				DB.Model(&existingScan).Updates(map[string]interface{}{
-					"status": scanModel.Status,
-				})
-			} else {
-				logger.Log.Debugf("Creating new scan for target: %s", target.Address)
-				if err := DB.Create(&scanModel).Error; err != nil {
-					logger.Log.Errorln("Error saving scan:", err)
-					return nil, err
-				}
-			}
 		}
 
 		if len(response.Pagination.Cursors) > 1 {
@@ -100,7 +96,7 @@ func (a *AssetService) GetAllAcunetixTargets(userID uuid.UUID) (map[string]strin
 	}
 
 	logger.Log.Infof("Successfully fetched Acunetix targets for user ID: %s", userID)
-	return assetUrlTargetIdMap, nil
+	return acunetixTargets, nil
 }
 
 func (a *AssetService) AddAcunetixTarget(targetURL string, userID uuid.UUID) {
@@ -134,9 +130,10 @@ func (a *AssetService) AddAcunetixTarget(targetURL string, userID uuid.UUID) {
 
 }
 
-func (a *AssetService) GetAllAcunetixScan(userID uuid.UUID) error {
+func (a *AssetService) GetAllAcunetixScan(userID uuid.UUID) (models.AllScans, error) {
 	logger.Log.Debugf("GetAllAcunetixScan called for user ID: %s", userID) // Debug: Entry Point
 	cursor := ""
+	var allScans models.AllScans
 
 	for {
 		endpoint := "/api/v1/scans?l=99"
@@ -145,50 +142,27 @@ func (a *AssetService) GetAllAcunetixScan(userID uuid.UUID) error {
 		}
 		logger.Log.Debugf("Fetching Acunetix scans with endpoint: %s", endpoint)
 
-		var allScans models.AllScans
 		resp, err := utils.SendGETRequestAcunetix(endpoint, userID)
 		if err != nil {
 			logger.Log.Errorln("Error fetching Acunetix scans:", err)
-			return err
+			return models.AllScans{}, err
 		}
 		defer resp.Body.Close()
 
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			logger.Log.Errorln("Error reading Acunetix scan response body:", err)
-			return err
+			return models.AllScans{}, err
 		}
 
 		err = json.Unmarshal(body, &allScans)
 		if err != nil {
 			logger.Log.Errorln("Error unmarshalling Acunetix scan response:", err)
-			return err
+			return models.AllScans{}, err
 		}
 
 		for _, scan := range allScans.Scans {
 			logger.Log.Debugf("Acunetix scan found: Target Address=%s, ScanID=%s, Status=%s", scan.Target.Address, scan.ScanID, scan.CurrentSession.Status)
-
-			scanModel := models.Scan{
-				TargetURL: scan.Target.Address,
-				Scanner:   "acunetix",
-				Status:    scan.CurrentSession.Status,
-			}
-
-			var existingScan models.Scan
-			result := DB.Where("target_url = ? AND scanner = ?", scan.Target.Address, "acunetix").First(&existingScan)
-
-			if result.Error == nil {
-				logger.Log.Debugf("Updating existing scan status for target: %s", scan.Target.Address)
-				DB.Model(&existingScan).Updates(map[string]interface{}{
-					"status": scanModel.Status,
-				})
-			} else {
-				logger.Log.Debugf("Creating new scan entry for target: %s", scan.Target.Address)
-				if err := DB.Create(&scanModel).Error; err != nil {
-					logger.Log.Errorln("Error saving scan to database:", err)
-					return err
-				}
-			}
 
 			scansJsonMap[scan.TargetID] = models.ScanJSONModel{
 				TargetID:  scan.TargetID,
@@ -199,6 +173,7 @@ func (a *AssetService) GetAllAcunetixScan(userID uuid.UUID) error {
 			}
 			targetIdScanIdMap[scan.TargetID] = scan.ScanID
 			logger.Log.Debugf("Mapping TargetID %s to ScanID %s", scan.TargetID, scan.ScanID)
+			scanUrlSeverityMap[scan.Target.Address] = scan.CurrentSession.SeverityCounts
 		}
 
 		if len(allScans.Pagination.Cursors) > 1 {
@@ -210,7 +185,7 @@ func (a *AssetService) GetAllAcunetixScan(userID uuid.UUID) error {
 		}
 	}
 	logger.Log.Infof("Successfully fetched Acunetix scan data for user ID: %s", userID)
-	return nil
+	return allScans, nil
 }
 
 // Scan başlatma fonksiyonu
@@ -300,10 +275,17 @@ func (a *AssetService) DeleteAcunetixTargets(targetIDList []string, userID uuid.
 func (as *AssetService) GetAllTargetsAcunetix(userID uuid.UUID) (map[string]string, error) {
 	logger.Log.Debugln("GetAllTargetsAcunetix called")
 	notScannedTargets := make(map[string]string)
-	assetUrlTargetIdMap := make(map[string]string) // Bu map'in doldurulması gerekiyor.
+	assetUrlTargetIdMap := make(map[string]string)
 
-	// Hata: assetUrlTargetIdMap boş olduğu için notScannedTargets her zaman boş dönecektir.
-	// Bu fonksiyonun doğru çalışması için assetUrlTargetIdMap'in GetAllAcunetixTargets gibi bir yerden doldurulması gerekir.
+	acunetixTargets, err := as.GetAllAcunetixTargets(userID)
+	if err != nil {
+		logger.Log.Errorln("Error fetching Acunetix targets:", err)
+		return nil, fmt.Errorf("data couldn't fetch from database: %v", err)
+	}
+
+	for _, target := range acunetixTargets.Targets {
+		assetUrlTargetIdMap[target.Address] = target.TargetID
+	}
 
 	var scans []models.Scan
 	if err := DB.Where(
@@ -334,4 +316,46 @@ func (as *AssetService) GetAllTargetsAcunetix(userID uuid.UUID) (map[string]stri
 	}
 	logger.Log.Infof("Found %d unscanned Acunetix targets", len(notScannedTargets))
 	return notScannedTargets, nil
+}
+
+func (as *AssetService) GetAllVulnerabilitiesAcunetix(userID uuid.UUID) (models.AcunetixVulnerabilities, error) {
+	logger.Log.Debugln("GetAllVulnerabilitiesAcunetix called")
+	var vulnerabilities models.AcunetixVulnerabilities
+	cursor := ""
+
+	for {
+		endpoint := "/api/v1/vulnerabilities?l=99&q=status:!ignored;status:!fixed;"
+		if cursor != "" {
+			endpoint += "&c=" + cursor
+		}
+
+		resp, err := utils.SendGETRequestAcunetix(endpoint, userID)
+		if err != nil {
+			logger.Log.Errorln("Error fetching Acunetix vulnerabilities:", err)
+			return models.AcunetixVulnerabilities{}, fmt.Errorf("data couldn't fetch from database: %v", err)
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			logger.Log.Errorln("Error reading response body:", err)
+			return models.AcunetixVulnerabilities{}, fmt.Errorf("data couldn't fetch from database: %v", err)
+		}
+
+		err = json.Unmarshal(body, &vulnerabilities)
+		if err != nil {
+			logger.Log.Errorln("Error unmarshalling Acunetix vulnerabilities:", err)
+			return models.AcunetixVulnerabilities{}, fmt.Errorf("data couldn't fetch from database: %v", err)
+		}
+
+		if len(vulnerabilities.Pagination.Cursors) > 1 {
+			cursor = vulnerabilities.Pagination.Cursors[1]
+			logger.Log.Debugf("Next cursor for Acunetix vulnerabilities: %s", cursor)
+		} else {
+			logger.Log.Debugln("No more Acunetix vulnerabilities to fetch.")
+			break
+		}
+	}
+
+	return vulnerabilities, nil
 }

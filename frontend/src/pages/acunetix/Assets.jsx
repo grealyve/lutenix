@@ -13,7 +13,8 @@ import {
   Pagination,
   Dropdown,
   OverlayTrigger,
-  Tooltip
+  Tooltip,
+  Alert
 } from 'react-bootstrap';
 import { 
   FaPlus, 
@@ -26,20 +27,24 @@ import {
   FaSort,
   FaSortUp,
   FaSortDown,
-  FaRedo
+  FaRedo,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 
 const AcunetixAssets = () => {
   const [assets, setAssets] = useState([]);
   const [filteredAssets, setFilteredAssets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedAssets, setSelectedAssets] = useState([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newAssetUrl, setNewAssetUrl] = useState('');
-  const [sortField, setSortField] = useState('target');
+  const [targetUrls, setTargetUrls] = useState('');
+  const [addingAsset, setAddingAsset] = useState(false);
+  const [sortField, setSortField] = useState('address');
   const [sortDirection, setSortDirection] = useState('asc');
   const [stats, setStats] = useState({
     total: 0,
@@ -47,143 +52,111 @@ const AcunetixAssets = () => {
   });
   
   const itemsPerPage = 8;
+  const apiUrl = 'http://localhost:4040/api/v1/acunetix/targets';
 
   // Fetch assets data
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        // Mock data - in a real app, this would be an API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        setError(null);
+        setSuccess(null);
         
-        const mockData = [
-          {
-            id: 1,
-            target: 'https://google.com',
-            scanStatus: 'Yes',
-            lastScan: '2023-05-10',
-            vulnerabilities: 5
-          },
-          {
-            id: 2,
-            target: '127.0.0.1',
-            scanStatus: 'Yes',
-            lastScan: '2023-05-09',
-            vulnerabilities: 2
-          },
-          {
-            id: 3,
-            target: 'https://tesla.com',
-            scanStatus: 'No',
-            lastScan: 'Never',
-            vulnerabilities: 0
-          },
-          {
-            id: 4,
-            target: 'http://www.tesla.com',
-            scanStatus: 'Yes',
-            lastScan: '2023-05-07',
-            vulnerabilities: 8
-          },
-          {
-            id: 5,
-            target: '127.0.0.1',
-            scanStatus: 'Yes',
-            lastScan: '2023-05-05',
-            vulnerabilities: 3
-          },
-          {
-            id: 6,
-            target: '127.0.0.1',
-            scanStatus: 'No',
-            lastScan: 'Never',
-            vulnerabilities: 0
-          },
-          {
-            id: 7,
-            target: '127.0.0.1',
-            scanStatus: 'Yes',
-            lastScan: '2023-05-01',
-            vulnerabilities: 1
-          },
-          {
-            id: 8,
-            target: '127.0.0.1',
-            scanStatus: 'No',
-            lastScan: 'Never',
-            vulnerabilities: 0
-          },
-          {
-            id: 9,
-            target: 'https://example.com',
-            scanStatus: 'Yes',
-            lastScan: '2023-04-28',
-            vulnerabilities: 6
-          },
-          {
-            id: 10,
-            target: 'https://microsoft.com',
-            scanStatus: 'No',
-            lastScan: 'Never',
-            vulnerabilities: 0
-          },
-          {
-            id: 11,
-            target: 'https://github.com',
-            scanStatus: 'Yes',
-            lastScan: '2023-04-22',
-            vulnerabilities: 3
-          },
-          {
-            id: 12,
-            target: 'https://gitlab.com',
-            scanStatus: 'Yes',
-            lastScan: '2023-04-20',
-            vulnerabilities: 2
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          setError('Authentication token not found. Please log in again.');
+          setLoading(false);
+          return;
+        }
+        
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
-        ];
+        });
         
-        setAssets(mockData);
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          setError('Session expired. Please log in again.');
+          setLoading(false);
+          return;
+        }
         
-        // Calculate stats
-        const scannedCount = mockData.filter(asset => asset.scanStatus === 'Yes').length;
+        if (!response.ok) {
+          throw new Error(`API error: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        const transformedData = result.data.targets.map(target => ({
+          id: target.target_id,
+          target: target.address,
+          fqdn: target.fqdn,
+          scanStatus: target.last_scan_date ? 'Yes' : 'No',
+          lastScan: target.last_scan_date ? new Date(target.last_scan_date).toLocaleDateString() : 'Never',
+          lastScanStatus: target.last_scan_session_status,
+          vulnerabilities: calculateTotalVulnerabilities(target.severity_counts),
+          severityCounts: target.severity_counts,
+          description: target.description,
+          threat: target.threat
+        }));
+        
+        setAssets(transformedData);
+        
+        const scannedCount = transformedData.filter(asset => asset.scanStatus === 'Yes').length;
         setStats({
-          total: mockData.length,
+          total: transformedData.length,
           scanned: scannedCount
         });
         
         setLoading(false);
       } catch (error) {
         console.error('Error fetching assets:', error);
+        setError('Failed to load Acunetix assets. Please try again later.');
         setLoading(false);
       }
+    };
+    
+    const calculateTotalVulnerabilities = (severityCounts) => {
+      if (!severityCounts) return 0;
+      return (
+        (severityCounts.critical || 0) +
+        (severityCounts.high || 0) +
+        (severityCounts.medium || 0) +
+        (severityCounts.low || 0) +
+        (severityCounts.info || 0)
+      );
     };
     
     fetchData();
   }, []);
   
-  // Apply filters, search, and sorting
   useEffect(() => {
     let results = [...assets];
     
-    // Apply search term
     if (searchTerm) {
       results = results.filter(asset =>
-        asset.target.toLowerCase().includes(searchTerm.toLowerCase())
+        asset.target.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        asset.fqdn.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     
-    // Apply status filter
     if (filterStatus !== 'All') {
       results = results.filter(asset => asset.scanStatus === filterStatus);
     }
     
-    // Apply sorting
     results.sort((a, b) => {
       if (sortField === 'target') {
         return sortDirection === 'asc' 
           ? a.target.localeCompare(b.target)
           : b.target.localeCompare(a.target);
+      }
+      if (sortField === 'fqdn') {
+        return sortDirection === 'asc' 
+          ? a.fqdn.localeCompare(b.fqdn)
+          : b.fqdn.localeCompare(a.fqdn);
       }
       if (sortField === 'scanStatus') {
         return sortDirection === 'asc' 
@@ -205,25 +178,27 @@ const AcunetixAssets = () => {
           ? a.vulnerabilities - b.vulnerabilities
           : b.vulnerabilities - a.vulnerabilities;
       }
+      if (sortField === 'threat') {
+        return sortDirection === 'asc' 
+          ? a.threat - b.threat
+          : b.threat - a.threat;
+      }
       return 0;
     });
     
     setFilteredAssets(results);
-    setCurrentPage(1); // Reset to first page when filters change
+    setCurrentPage(1);
   }, [assets, searchTerm, filterStatus, sortField, sortDirection]);
   
-  // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredAssets.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredAssets.length / itemsPerPage);
   
-  // Handle pagination click
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
   };
   
-  // Handle checkbox selection
   const toggleAssetSelection = (id) => {
     setSelectedAssets(prevSelected => {
       if (prevSelected.includes(id)) {
@@ -234,7 +209,6 @@ const AcunetixAssets = () => {
     });
   };
   
-  // Select all assets on current page
   const toggleSelectAll = (e) => {
     if (e.target.checked) {
       const currentIds = currentItems.map(item => item.id);
@@ -245,7 +219,6 @@ const AcunetixAssets = () => {
     }
   };
 
-  // Handle sort
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -255,58 +228,189 @@ const AcunetixAssets = () => {
     }
   };
   
-  // Handle add asset
-  const handleAddAsset = () => {
-    // Validate URL
-    if (!newAssetUrl.trim()) return;
+  const handleAddAsset = async () => {
+    if (!targetUrls.trim()) return;
     
-    // Create new asset
-    const newAsset = {
-      id: assets.length + 1,
-      target: newAssetUrl,
-      scanStatus: 'No',
-      lastScan: 'Never',
-      vulnerabilities: 0
-    };
-    
-    // Add to assets
-    setAssets(prev => [...prev, newAsset]);
-    
-    // Update stats
-    setStats(prev => ({
-      ...prev,
-      total: prev.total + 1
-    }));
-    
-    // Close modal and reset form
-    setShowAddModal(false);
-    setNewAssetUrl('');
+    try {
+      setLoading(true);
+      setAddingAsset(true);
+      setError(null);
+      setSuccess(null);
+      
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setError('Authentication token not found. Please log in again.');
+        setLoading(false);
+        setAddingAsset(false);
+        return;
+      }
+      
+      // Parse input - split by newline and filter empty lines
+      const urls = targetUrls.split('\n')
+        .map(url => url.trim())
+        .filter(url => url.length > 0);
+      
+      if (urls.length === 0) {
+        setError('Please enter at least one valid URL.');
+        setLoading(false);
+        setAddingAsset(false);
+        return;
+      }
+      
+      let successCount = 0;
+      let errorCount = 0;
+      
+      // Process each URL sequentially
+      for (const url of urls) {
+        try {          
+          const response = await fetch('http://localhost:4040/api/v1/acunetix/targets', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ target_url: url })
+          });
+          
+          console.log(`Response status for ${url}: ${response.status}`);
+          
+          if (response.status === 401) {
+            localStorage.removeItem('auth_token');
+            setError('Session expired. Please log in again.');
+            setLoading(false);
+            setAddingAsset(false);
+            return;
+          }
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Error response for ${url}:`, errorText);
+            throw new Error(`Failed to add target: ${url} (${response.status})`);
+          }
+          
+          const result = await response.json();
+          console.log(`Successfully added target: ${url}`, result);
+          successCount++;
+          
+          // Add small delay between requests to avoid overwhelming the server
+          await new Promise(resolve => setTimeout(resolve, 300));
+        } catch (error) {
+          console.error(`Error adding target ${url}:`, error);
+          errorCount++;
+        }
+      }
+      
+      // After processing all URLs, refresh the asset list regardless of errors
+      try {
+        console.log("Refreshing asset list after additions");
+        const fetchResponse = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (fetchResponse.ok) {
+          const result = await fetchResponse.json();
+          
+          if (result && result.data && Array.isArray(result.data.targets)) {
+            const transformedData = result.data.targets.map(target => ({
+              id: target.target_id,
+              target: target.address,
+              fqdn: target.fqdn || '',
+              scanStatus: target.last_scan_date ? 'Yes' : 'No',
+              lastScan: target.last_scan_date ? new Date(target.last_scan_date).toLocaleDateString() : 'Never',
+              lastScanStatus: target.last_scan_session_status || '',
+              vulnerabilities: calculateTotalVulnerabilities(target.severity_counts),
+              severityCounts: target.severity_counts || {},
+              description: target.description || '',
+              threat: target.threat || 0
+            }));
+            
+            setAssets(transformedData);
+            
+            const scannedCount = transformedData.filter(asset => asset.scanStatus === 'Yes').length;
+            setStats({
+              total: transformedData.length,
+              scanned: scannedCount
+            });
+          } else {
+            console.error("Invalid response format:", result);
+          }
+        } else {
+          console.error("Failed to refresh asset list:", fetchResponse.status);
+        }
+      } catch (refreshError) {
+        console.error("Error refreshing asset list:", refreshError);
+      }
+      
+      // Show result message
+      if (errorCount > 0 && successCount > 0) {
+        setSuccess(`Successfully added ${successCount} targets.`);
+        setError(`Failed to add ${errorCount} targets. Check console for details.`);
+      } else if (errorCount > 0) {
+        setError(`Failed to add ${errorCount} targets. Check console for details.`);
+      } else if (successCount > 0) {
+        setSuccess(`Successfully added ${successCount} targets.`);
+      }
+      
+      setShowAddModal(false);
+      setTargetUrls('');
+      setLoading(false);
+      setAddingAsset(false);
+    } catch (error) {
+      console.error('Error adding assets:', error);
+      setError('Failed to add assets. Please try again.');
+      setLoading(false);
+      setAddingAsset(false);
+    }
   };
   
-  // Handle delete assets
-  const handleDeleteAssets = () => {
-    // Filter out selected assets
-    const updatedAssets = assets.filter(asset => !selectedAssets.includes(asset.id));
+  const handleDeleteAssets = async () => {
+    if (selectedAssets.length === 0) return;
     
-    // Update assets
-    setAssets(updatedAssets);
-    
-    // Update stats
-    const scannedCount = updatedAssets.filter(asset => asset.scanStatus === 'Yes').length;
-    setStats({
-      total: updatedAssets.length,
-      scanned: scannedCount
-    });
-    
-    // Clear selection
-    setSelectedAssets([]);
+    try {
+      setLoading(true);
+      
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setError('Authentication token not found. Please log in again.');
+        setLoading(false);
+        return;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      const updatedAssets = assets.filter(asset => !selectedAssets.includes(asset.id));
+      
+      setAssets(updatedAssets);
+      
+      const scannedCount = updatedAssets.filter(asset => asset.scanStatus === 'Yes').length;
+      setStats({
+        total: updatedAssets.length,
+        scanned: scannedCount
+      });
+      
+      setSelectedAssets([]);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error deleting assets:', error);
+      setError('Failed to delete assets. Please try again.');
+      setLoading(false);
+    }
   };
   
-  // Generate pagination items
+  const getSeverityBadgeColor = (count) => {
+    if (count > 10) return "danger";
+    if (count > 5) return "warning";
+    if (count > 0) return "info";
+    return "secondary";
+  };
+  
   const renderPaginationItems = () => {
     const items = [];
     
-    // Previous button
     items.push(
       <Pagination.Prev 
         key="prev" 
@@ -315,7 +419,6 @@ const AcunetixAssets = () => {
       />
     );
     
-    // Page numbers
     for (let number = 1; number <= Math.min(totalPages, 5); number++) {
       items.push(
         <Pagination.Item
@@ -328,7 +431,6 @@ const AcunetixAssets = () => {
       );
     }
     
-    // Ellipsis and last page
     if (totalPages > 5) {
       items.push(<Pagination.Ellipsis key="ellipsis" />);
       items.push(
@@ -342,7 +444,6 @@ const AcunetixAssets = () => {
       );
     }
     
-    // Next button
     items.push(
       <Pagination.Next 
         key="next" 
@@ -354,7 +455,6 @@ const AcunetixAssets = () => {
     return items;
   };
 
-  // Render sort icon based on current sort state
   const renderSortIcon = (field) => {
     if (sortField !== field) return <FaSort className="ms-1 text-muted" />;
     if (sortDirection === 'asc') return <FaSortUp className="ms-1" />;
@@ -365,6 +465,22 @@ const AcunetixAssets = () => {
     <div className="page-content">
       <Container fluid>
         <h1 className="mb-4">Acunetix Assets</h1>
+        
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="danger" className="mb-4" dismissible onClose={() => setError(null)}>
+            <FaExclamationTriangle className="me-2" />
+            {error}
+          </Alert>
+        )}
+        
+        {/* Success Alert */}
+        {success && (
+          <Alert variant="success" className="mb-4" dismissible onClose={() => setSuccess(null)}>
+            <FaCheckCircle className="me-2" />
+            {success}
+          </Alert>
+        )}
         
         {/* Stats and Action Buttons */}
         <Card className="bg-dark text-white mb-4 border-0 shadow">
@@ -386,7 +502,7 @@ const AcunetixAssets = () => {
                   className="me-2" 
                   onClick={() => setShowAddModal(true)}
                 >
-                  <FaPlus className="me-2" /> Add Asset
+                  <FaPlus className="me-2" /> Add Assets
                 </Button>
                 <Button 
                   variant="danger" 
@@ -469,6 +585,9 @@ const AcunetixAssets = () => {
                     <th className="cursor-pointer" onClick={() => handleSort('target')}>
                       Target {renderSortIcon('target')}
                     </th>
+                    <th className="cursor-pointer" onClick={() => handleSort('fqdn')}>
+                      FQDN {renderSortIcon('fqdn')}
+                    </th>
                     <th className="cursor-pointer" onClick={() => handleSort('scanStatus')}>
                       Scan Status {renderSortIcon('scanStatus')}
                     </th>
@@ -484,11 +603,11 @@ const AcunetixAssets = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-4">Loading...</td>
+                      <td colSpan={7} className="text-center py-4">Loading...</td>
                     </tr>
                   ) : currentItems.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="text-center py-4">No assets match your filters</td>
+                      <td colSpan={7} className="text-center py-4">No assets match your filters</td>
                     </tr>
                   ) : (
                     currentItems.map(asset => (
@@ -501,6 +620,7 @@ const AcunetixAssets = () => {
                           />
                         </td>
                         <td>{asset.target}</td>
+                        <td>{asset.fqdn}</td>
                         <td>
                           {asset.scanStatus === 'Yes' ? (
                             <Badge bg="success" className="d-inline-flex align-items-center">
@@ -515,9 +635,22 @@ const AcunetixAssets = () => {
                         <td>{asset.lastScan}</td>
                         <td>
                           {asset.vulnerabilities > 0 ? (
-                            <Badge bg={asset.vulnerabilities > 5 ? "danger" : asset.vulnerabilities > 2 ? "warning" : "info"}>
-                              {asset.vulnerabilities}
-                            </Badge>
+                            <OverlayTrigger
+                              placement="top"
+                              overlay={
+                                <Tooltip>
+                                  Critical: {asset.severityCounts.critical || 0}<br />
+                                  High: {asset.severityCounts.high || 0}<br />
+                                  Medium: {asset.severityCounts.medium || 0}<br />
+                                  Low: {asset.severityCounts.low || 0}<br />
+                                  Info: {asset.severityCounts.info || 0}
+                                </Tooltip>
+                              }
+                            >
+                              <Badge bg={getSeverityBadgeColor(asset.vulnerabilities)}>
+                                {asset.vulnerabilities}
+                              </Badge>
+                            </OverlayTrigger>
                           ) : (
                             <span>-</span>
                           )}
@@ -552,7 +685,7 @@ const AcunetixAssets = () => {
             {/* Pagination */}
             <div className="d-flex justify-content-between align-items-center mt-3">
               <div className="small text-muted">
-                Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredAssets.length)} of {filteredAssets.length} assets
+                Showing {filteredAssets.length > 0 ? indexOfFirstItem + 1 : 0} to {Math.min(indexOfLastItem, filteredAssets.length)} of {filteredAssets.length} assets
               </div>
               <Pagination size="sm" className="mb-0">
                 {renderPaginationItems()}
@@ -568,20 +701,21 @@ const AcunetixAssets = () => {
           centered
         >
           <Modal.Header closeButton>
-            <Modal.Title>Add New Asset</Modal.Title>
+            <Modal.Title>Add New Assets</Modal.Title>
           </Modal.Header>
           <Modal.Body>
             <Form>
               <Form.Group className="mb-3">
-                <Form.Label>Asset URL or IP</Form.Label>
+                <Form.Label>Target URLs or IPs</Form.Label>
                 <Form.Control
-                  type="text"
-                  placeholder="https://example.com or 127.0.0.1"
-                  value={newAssetUrl}
-                  onChange={(e) => setNewAssetUrl(e.target.value)}
+                  as="textarea"
+                  rows={5}
+                  placeholder="https://example1.com&#10;https://example2.com&#10;127.0.0.1"
+                  value={targetUrls}
+                  onChange={(e) => setTargetUrls(e.target.value)}
                 />
                 <Form.Text className="text-muted">
-                  Enter a valid URL with protocol (https://) or an IP address
+                  Enter one target per line. Each target should be a valid URL with protocol (https://) or an IP address.
                 </Form.Text>
               </Form.Group>
             </Form>
@@ -590,8 +724,12 @@ const AcunetixAssets = () => {
             <Button variant="secondary" onClick={() => setShowAddModal(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleAddAsset} disabled={!newAssetUrl.trim()}>
-              Add Asset
+            <Button 
+              variant="primary" 
+              onClick={handleAddAsset} 
+              disabled={!targetUrls.trim() || addingAsset}
+            >
+              {addingAsset ? 'Adding...' : 'Add Assets'}
             </Button>
           </Modal.Footer>
         </Modal>
@@ -600,4 +738,4 @@ const AcunetixAssets = () => {
   );
 };
 
-export default AcunetixAssets; 
+export default AcunetixAssets;

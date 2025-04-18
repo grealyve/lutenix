@@ -15,6 +15,7 @@ func AcunetixRoutes(router *gin.Engine) {
 	acunetix.GET("/targets", acunetixController.AcunetixGetAllTargets)                     // Read yetkisi?
 	acunetix.POST("/targets", acunetixController.AcunetixAddTarget)                        // Create/Update yetkisi?
 	acunetix.GET("/scans", acunetixController.AcunetixGetAllScans)                         // Read yetkisi?
+	acunetix.GET("/vulnerabilities", acunetixController.AcunetixGetAllVulnerabilities)     // Read yetkisi?
 	acunetix.POST("/targets/:target_id/scan", acunetixController.AcunetixTriggerScan)      // Execute/Update yetkisi?
 	acunetix.POST("/targets/delete", acunetixController.AcunetixDeleteTargets)             // Delete yetkisi?
 	acunetix.GET("/targets/not_scanned", acunetixController.AcunetixGetAllTargetsNotScanned) // Read yetkisi?
