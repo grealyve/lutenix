@@ -20,6 +20,10 @@ func AdminRoutes(router *gin.Engine) {
 		// adminAuthenticated.DELETE("/deleteUser", middlewares.Authorization("user", "delete"), userController.DeleteUser)
 		adminAuthenticated.POST("/createCompany", middlewares.Authorization("user", "create"), userController.CreateCompany)
 		adminAuthenticated.POST("/addCompanyUser", middlewares.Authorization("user", "update"), userController.AddUserToCompany) 
+		adminAuthenticated.POST("/makeAdmin", middlewares.Authorization("user", "update"), userController.MakeAdmin)
+		adminAuthenticated.POST("/makeUser", middlewares.Authorization("user", "update"), userController.MakeUser)
+		adminAuthenticated.POST("/deleteUser", middlewares.Authorization("user", "delete"), userController.DeleteUser)
+		adminAuthenticated.GET("/getUsers", middlewares.Authorization("user", "read"), userController.GetUsers)
 	}
 
 }

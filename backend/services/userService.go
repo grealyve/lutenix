@@ -193,3 +193,49 @@ func (us *UserService) GetCompanyIDByName(companyName string) (uuid.UUID, error)
 	}
 	return company.ID, nil
 }
+
+func (us *UserService) MakeAdmin(email string) error {
+	result := database.DB.Model(&models.User{}).Where("email = ?", email).Update("role", "admin")
+	if result.Error != nil {
+		logger.Log.Errorf("Error making user admin: %v", result.Error)
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		logger.Log.Warnf("No user was updated with email: %s", email)
+	}
+	return nil
+}
+
+func (us *UserService) MakeUser(email string) error {
+	result := database.DB.Model(&models.User{}).Where("email = ?", email).Update("role", "user")
+	if result.Error != nil {
+		logger.Log.Errorf("Error making user user: %v", result.Error)
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		logger.Log.Warnf("No user was updated with email: %s", email)
+	}
+	return nil
+}
+
+func (us *UserService) DeleteUser(email string) error {
+	result := database.DB.Model(&models.User{}).Where("email = ?", email).Delete(&models.User{})
+	if result.Error != nil {
+		logger.Log.Errorf("Error deleting user: %v", result.Error)
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		logger.Log.Warnf("No user was deleted with email: %s", email)
+	}
+	return nil
+}
+
+func (us *UserService) GetUsers() ([]models.User, error) {
+	var users []models.User
+	err := database.DB.Find(&users).Error
+	if err != nil {
+		logger.Log.Errorf("Error retrieving users: %v", err)
+		return nil, err
+	}
+	return users, nil
+}

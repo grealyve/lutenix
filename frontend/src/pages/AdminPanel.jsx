@@ -26,6 +26,7 @@ const AdminPanel = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newUser, setNewUser] = useState({
     name: '',
+    surname: '',
     email: '',
     password: '',
     isAdmin: false
@@ -42,35 +43,47 @@ const AdminPanel = () => {
   }, [user, navigate]);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const mockUsers = [
-          { id: 1, name: 'Admin', email: 'admin@lutenix.com', isAdmin: true },
-          { id: 2, name: 'Enes Çaylı', email: 'enes@lutenix.com', isAdmin: false },
-          { id: 3, name: 'Ali Alğan', email: 'ali@lutenix.com', isAdmin: false },
-          { id: 4, name: 'Yusuf Çalışkan', email: 'yusuf@lutenix.com', isAdmin: false },
-          { id: 5, name: 'Mehmet Yılmaz', email: 'mehmet@lutenix.com', isAdmin: false },
-          { id: 6, name: 'Ayşe Demir', email: 'ayse@lutenix.com', isAdmin: false },
-          { id: 7, name: 'Fatma Kaya', email: 'fatma@lutenix.com', isAdmin: false },
-          { id: 8, name: 'Ahmet Öztürk', email: 'ahmet@lutenix.com', isAdmin: false },
-          { id: 9, name: 'Zeynep Şahin', email: 'zeynep@lutenix.com', isAdmin: false },
-          { id: 10, name: 'Mustafa Yıldız', email: 'mustafa@lutenix.com', isAdmin: false },
-        ];
-        
-        setUsers(mockUsers);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        setLoading(false);
-        showAlertMessage('danger', 'Failed to load users. Please try again.');
-      }
-    };
-    
     fetchUsers();
   }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('auth_token');
+      
+      const response = await fetch('http://localhost:4040/api/v1/admin/getUsers', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          navigate('/login');
+          return;
+        }
+        throw new Error('Failed to fetch users');
+      }
+      
+      const data = await response.json();
+      const formattedUsers = data.map(user => ({
+        id: user.id,
+        name: `${user.name} ${user.surname}`,
+        email: user.email,
+        isAdmin: user.role === 'admin'
+      }));
+      
+      setUsers(formattedUsers);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      showAlertMessage('danger', 'Failed to load users. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const indexOfLastUser = currentPage * itemsPerPage;
   const indexOfFirstUser = indexOfLastUser - itemsPerPage;
@@ -109,60 +122,201 @@ const AdminPanel = () => {
     }));
   };
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     if (!newUser.name || !newUser.email || !newUser.password) {
       showAlertMessage('danger', 'Please fill all required fields');
       return;
     }
     
-    const newUserObj = {
-      id: users.length + 1,
-      name: newUser.name,
-      email: newUser.email,
-      isAdmin: newUser.isAdmin
-    };
-    
-    setUsers(prev => [...prev, newUserObj]);
-    setShowCreateModal(false);
-    setNewUser({
-      name: '',
-      email: '',
-      password: '',
-      isAdmin: false
-    });
-    
-    showAlertMessage('success', 'User created successfully');
-  };
-
-  const handleDeleteUsers = () => {
-    if (selectedUsers.length === 0) return;
-    
-    if (selectedUsers.includes(1)) {
-      showAlertMessage('danger', 'Cannot delete admin account');
-      return;
-    }
-    
-    const updatedUsers = users.filter(user => !selectedUsers.includes(user.id));
-    setUsers(updatedUsers);
-    setSelectedUsers([]);
-    
-    showAlertMessage('success', 'Selected users deleted successfully');
-  };
-
-  const handleMakeAdmin = () => {
-    if (selectedUsers.length === 0) return;
-    
-    const updatedUsers = users.map(user => {
-      if (selectedUsers.includes(user.id)) {
-        return { ...user, isAdmin: true };
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('auth_token');
+      
+      const response = await fetch('http://localhost:4040/api/v1/admin/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: newUser.name,
+          surname: newUser.surname || '',
+          email: newUser.email,
+          password: newUser.password,
+          role: newUser.isAdmin ? 'admin' : 'user'
+        })
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          navigate('/login');
+          return;
+        }
+        throw new Error('Failed to create user');
       }
-      return user;
-    });
+      
+      setShowCreateModal(false);
+      setNewUser({
+        name: '',
+        surname: '',
+        email: '',
+        password: '',
+        isAdmin: false
+      });
+      
+      showAlertMessage('success', 'User created successfully');
+      fetchUsers(); // Refresh the user list
+    } catch (error) {
+      console.error('Error creating user:', error);
+      showAlertMessage('danger', error.message || 'Failed to create user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteUsers = async () => {
+    if (selectedUsers.length === 0) return;
     
-    setUsers(updatedUsers);
-    setSelectedUsers([]);
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('auth_token');
+      
+      // Process each selected user
+      for (const userId of selectedUsers) {
+        const userToDelete = users.find(user => user.id === userId);
+        if (!userToDelete) continue;
+        
+        // Skip deletion of admin user (if applicable)
+        if (userToDelete.isAdmin && userToDelete.email === 'admin@admin.com') {
+          showAlertMessage('danger', 'Cannot delete main admin account');
+          continue;
+        }
+        
+        const response = await fetch('http://localhost:4040/api/v1/admin/deleteUser', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ email: userToDelete.email })
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('auth_token');
+            navigate('/login');
+            return;
+          }
+          throw new Error(`Failed to delete ${userToDelete.name}`);
+        }
+      }
+      
+      setSelectedUsers([]);
+      showAlertMessage('success', 'Selected users deleted successfully');
+      fetchUsers(); // Refresh the user list
+    } catch (error) {
+      console.error('Error deleting users:', error);
+      showAlertMessage('danger', error.message || 'Failed to delete users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMakeAdmin = async () => {
+    if (selectedUsers.length === 0) return;
     
-    showAlertMessage('success', 'Selected users granted admin privileges');
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('auth_token');
+      
+      // Process each selected user
+      for (const userId of selectedUsers) {
+        const userToUpdate = users.find(user => user.id === userId);
+        if (!userToUpdate) continue;
+        
+        const response = await fetch('http://localhost:4040/api/v1/admin/makeAdmin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ email: userToUpdate.email })
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('auth_token');
+            navigate('/login');
+            return;
+          }
+          throw new Error(`Failed to make ${userToUpdate.name} an admin`);
+        }
+      }
+      
+      setSelectedUsers([]);
+      showAlertMessage('success', 'Selected users granted admin privileges');
+      fetchUsers(); // Refresh the user list
+    } catch (error) {
+      console.error('Error making users admin:', error);
+      showAlertMessage('danger', error.message || 'Failed to update admin privileges');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMakeUser = async () => {
+    if (selectedUsers.length === 0) return;
+    
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('auth_token');
+      
+      console.log('Making users regular users...');
+      
+      for (const userId of selectedUsers) {
+        const userToUpdate = users.find(user => user.id === userId);
+        if (!userToUpdate) continue;
+        
+        // Case-insensitive comparison to ensure admin protection
+        if (userToUpdate.email.toLowerCase() === 'admin@admin.com'.toLowerCase()) {
+          showAlertMessage('danger', 'Cannot change main admin account to regular user');
+          console.log('Attempted to change admin account - operation blocked');
+          continue;
+        }
+        
+        console.log(`Sending makeUser request for ${userToUpdate.email}`);
+        
+        const response = await fetch('http://localhost:4040/api/v1/admin/makeUser', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ email: userToUpdate.email })
+        });
+        
+        console.log('makeUser response status:', response.status);
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('auth_token');
+            navigate('/login');
+            return;
+          }
+          throw new Error(`Failed to make ${userToUpdate.name} a regular user`);
+        }
+      }
+      
+      setSelectedUsers([]);
+      showAlertMessage('success', 'Selected users changed to regular users');
+      fetchUsers(); // Refresh the user list
+    } catch (error) {
+      console.error('Error making regular users:', error);
+      showAlertMessage('danger', error.message || 'Failed to update user privileges');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const showAlertMessage = (variant, message) => {
@@ -263,6 +417,14 @@ const AdminPanel = () => {
             <i className="bi bi-person-check me-2"></i>
             Make Admin
           </Button>
+          <Button 
+            variant="secondary" 
+            onClick={handleMakeUser}
+            disabled={selectedUsers.length === 0}
+          >
+            <i className="bi bi-person me-2"></i>
+            Make Regular User
+          </Button>
         </div>
         
         {/* Users Table */}
@@ -286,8 +448,9 @@ const AdminPanel = () => {
                             checked={currentUsers.length > 0 && currentUsers.every(user => selectedUsers.includes(user.id))}
                           />
                         </th>
-                        <th>Users <i className="bi bi-funnel-fill ms-1"></i></th>
-                        <th>Is Admin <i className="bi bi-funnel-fill ms-1"></i></th>
+                        <th>User <i className="bi bi-funnel-fill ms-1"></i></th>
+                        <th>Email <i className="bi bi-funnel-fill ms-1"></i></th>
+                        <th>Role <i className="bi bi-funnel-fill ms-1"></i></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -301,11 +464,12 @@ const AdminPanel = () => {
                             />
                           </td>
                           <td>{user.name}</td>
+                          <td>{user.email}</td>
                           <td>
                             {user.isAdmin ? (
-                              <Badge bg="success">Yes</Badge>
+                              <Badge bg="success">Admin</Badge>
                             ) : (
-                              <Badge bg="danger">No</Badge>
+                              <Badge bg="secondary">User</Badge>
                             )}
                           </td>
                         </tr>
@@ -345,6 +509,17 @@ const AdminPanel = () => {
                   value={newUser.name}
                   onChange={handleInputChange}
                   placeholder="Enter user's name"
+                />
+              </Form.Group>
+              
+              <Form.Group className="mb-3">
+                <Form.Label>Surname</Form.Label>
+                <Form.Control
+                  type="text"
+                  name="surname"
+                  value={newUser.surname}
+                  onChange={handleInputChange}
+                  placeholder="Enter user's surname"
                 />
               </Form.Group>
               
@@ -395,4 +570,4 @@ const AdminPanel = () => {
   );
 };
 
-export default AdminPanel; 
+export default AdminPanel;

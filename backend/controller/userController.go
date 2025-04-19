@@ -371,3 +371,70 @@ func (uc *UserController) GetScannerSetting(c *gin.Context) {
 
 	c.JSON(http.StatusOK, scannerSetting)
 }
+
+func (uc *UserController) MakeAdmin(c *gin.Context) {
+    var request struct {
+        Email string `json:"email" binding:"required"`
+    }
+
+    if err := c.ShouldBindJSON(&request); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+        return
+    }
+
+    err := uc.UserService.MakeAdmin(request.Email)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user role"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "User role updated to admin successfully"})
+}
+
+func (uc *UserController) MakeUser(c *gin.Context) {
+    var request struct {
+        Email string `json:"email" binding:"required"`
+    }
+
+    if err := c.ShouldBindJSON(&request); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+        return
+    }
+
+    err := uc.UserService.MakeUser(request.Email)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user role"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "User role updated to user successfully"})
+}
+
+func (uc *UserController) DeleteUser(c *gin.Context) {
+    var request struct {
+        Email string `json:"email" binding:"required"`
+    }
+
+    if err := c.ShouldBindJSON(&request); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+        return
+    }
+
+    err := uc.UserService.DeleteUser(request.Email)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete user"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "User deleted successfully"})
+}
+
+func (uc *UserController) GetUsers(c *gin.Context) {
+    users, err := uc.UserService.GetUsers()
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve users"})
+        return
+    }
+
+    c.JSON(http.StatusOK, users)
+}
