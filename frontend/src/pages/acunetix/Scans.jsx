@@ -162,10 +162,8 @@ const AcunetixScans = () => {
 
   const handleSelectAll = () => {
     if (selectedTargets.length === targets.length) {
-      // Deselect all if all are selected
       setSelectedTargets([]);
     } else {
-      // Select all
       setSelectedTargets(targets.map(target => target.target_id));
     }
   };
@@ -180,16 +178,13 @@ const AcunetixScans = () => {
     setIsSubmitting(true);
     
     try {
-      // Get auth token from localStorage
       const token = localStorage.getItem('auth_token');
       
-      // Get the URLs for the selected targets
       const scan_urls = selectedTargets.map(targetId => {
         const target = targets.find(t => t.target_id === targetId);
         return target ? target.address : null;
-      }).filter(url => url); // Remove any null values
+      }).filter(url => url);
       
-      // Make API request to start the scan
       const response = await fetch('http://localhost:4040/api/v1/acunetix/startScan', {
         method: 'POST',
         headers: {
@@ -199,7 +194,6 @@ const AcunetixScans = () => {
         body: JSON.stringify({ scan_urls })
       });
       
-      // Handle 401 unauthorized error
       if (response.status === 401) {
         localStorage.removeItem('auth_token');
         setAlertType('danger');
@@ -217,7 +211,6 @@ const AcunetixScans = () => {
       setAlertType('success');
       setAlertMessage('Scan started successfully!');
       
-      // Refresh scan data
       setTimeout(() => {
         window.location.reload();
       }, 1500);
@@ -231,15 +224,115 @@ const AcunetixScans = () => {
     }
   };
 
-  const handleDeleteScan = (selectedScanIds) => {
+  const handleDeleteScan = async (selectedScanIds) => {
     if (window.confirm(`Are you sure you want to delete ${selectedScanIds.length} scan(s)?`)) {
-      setScanData(scanData.filter(scan => !selectedScanIds.includes(scan.id)));
-      alert(`Deleted ${selectedScanIds.length} scan(s)`);
+      try {
+        setIsLoading(true);
+        
+        const token = localStorage.getItem('auth_token');
+        
+        const scan_urls = selectedScanIds.map(scanId => {
+          const scan = scanData.find(s => s.id === scanId);
+          return scan ? scan.target : null;
+        }).filter(url => url);
+        
+        const response = await fetch('http://localhost:4040/api/v1/acunetix/scans/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ scan_urls })
+        });
+        
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          setError('Authentication failed. Please log in again.');
+          setIsLoading(false);
+          return;
+        }
+        
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`);
+        }
+        
+        setScanData(scanData.filter(scan => !selectedScanIds.includes(scan.id)));
+        
+        setAlertType('success');
+        setAlertMessage(`Successfully deleted ${selectedScanIds.length} scan(s)`);
+        
+        // Refresh data
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+        
+      } catch (err) {
+        setError(`Failed to delete scan(s): ${err.message}`);
+        console.error('Error deleting scans:', err);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
-  const handleStopScan = (selectedScanIds) => {
-    alert(`Stopped ${selectedScanIds.length} scan(s)`);
+  const handleStopScan = async (selectedScanIds) => {
+    if (window.confirm(`Are you sure you want to stop ${selectedScanIds.length} scan(s)?`)) {
+      try {
+        setIsLoading(true);
+        setError(null);
+        setAlertMessage(null);
+        
+        const token = localStorage.getItem('auth_token');
+        
+        const scan_urls = selectedScanIds.map(scanId => {
+          const scan = scanData.find(s => s.id === scanId);
+          return scan ? scan.target : null;
+        }).filter(url => url);
+        
+        const response = await fetch('http://localhost:4040/api/v1/acunetix/scans/abort', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ scan_urls })
+        });
+        
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          setError('Authentication failed. Please log in again.');
+          setIsLoading(false);
+          return;
+        }
+        
+        if (!response.ok) {
+          throw new Error(`API request failed with status ${response.status}`);
+        }
+        
+        // Update scan status in the UI
+        setScanData(prevData => 
+          prevData.map(scan => 
+            selectedScanIds.includes(scan.id) 
+              ? { ...scan, status: 'aborted', progress: 100 } 
+              : scan
+          )
+        );
+        
+        setAlertType('success');
+        setAlertMessage(`Successfully stopped ${selectedScanIds.length} scan(s)`);
+        
+        // Refresh data to get updated scan statuses
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+        
+      } catch (err) {
+        setError(`Failed to stop scan(s): ${err.message}`);
+        console.error('Error stopping scans:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
   };
 
   return (

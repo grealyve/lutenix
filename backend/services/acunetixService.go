@@ -176,7 +176,7 @@ func (a *AssetService) GetAllAcunetixScan(userID uuid.UUID) (models.AllScans, er
 		for _, scan := range allScans.Scans {
 			logger.Log.Debugf("Acunetix scan found: Target Address=%s, ScanID=%s, Status=%s", scan.Target.Address, scan.ScanID, scan.CurrentSession.Status)
 
-			scansJsonMap[scan.TargetID] = models.ScanJSONModel{
+			scansJsonMap[scan.Target.Address] = models.ScanJSONModel{
 				TargetID:  scan.TargetID,
 				Status:    scan.CurrentSession.Status,
 				Address:   scan.Target.Address,
@@ -394,13 +394,76 @@ func (as *AssetService) GetAllVulnerabilitiesAcunetix(userID uuid.UUID) (models.
 		}
 
 		if len(vulnerabilities.Pagination.Cursors) > 1 {
-			cursor = vulnerabilities.Pagination.Cursors[1]
-			logger.Log.Debugf("Next cursor for Acunetix vulnerabilities: %s", cursor)
+			nextCursorIndex := 1
+			nextCursor := vulnerabilities.Pagination.Cursors[nextCursorIndex]
+			if nextCursor == "" {
+				logger.Log.Debugln("No more Acunetix vulnerabilities to fetch (empty cursor).")
+				break
+			}
+			
+			cursor = nextCursor
+			logger.Log.Debugf("Next cursor for Acunetix scans: %s", cursor)
 		} else {
-			logger.Log.Debugln("No more Acunetix vulnerabilities to fetch.")
+			logger.Log.Debugln("No pagination cursors found or no more pages.")
 			break
 		}
 	}
 
 	return vulnerabilities, nil
+}
+
+// DELETE /api/v1/scans/{scanID}
+func (as *AssetService) DeleteAcunetixScan(scanUrl []string, userID uuid.UUID) {
+	as.GetAllAcunetixScan(userID)
+	logger.Log.Infof("DeleteAcunetixScan called for scan URLs: %v, user ID: %s", scanUrl, userID)
+
+	for _, url := range scanUrl {
+		var scanModel models.ScanJSONModel
+		scanModel, ok := scansJsonMap[url]
+		if !ok {
+			logger.Log.Infof("Scan URL %s not found in map", url)
+			continue
+		}
+
+		resp, err := utils.SendCustomRequestAcunetix("DELETE", "/api/v1/scans/"+scanModel.ScanID, nil, userID)
+		if err != nil {
+			logger.Log.Errorln("Request error:", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != 204 {
+			logger.Log.Errorln(string(body))
+			logger.Log.Errorln("Response Status:", resp.Status)
+		}
+	}
+}
+
+// POST /api/v1/scans/{scanID}/abort
+func (as *AssetService) AbortAcunetixScan(scanUrl []string, userID uuid.UUID) {
+	as.GetAllAcunetixScan(userID)
+	logger.Log.Infof("AbortAcunetixScan called for scan URLs: %v, user ID: %s", scanUrl, userID)
+
+	for _, url := range scanUrl {
+		var scanModel models.ScanJSONModel
+		scanModel, ok := scansJsonMap[url]
+		if !ok {
+			logger.Log.Infof("Scan URL %s not found in map", url)
+			continue
+		}
+
+		resp, err := utils.SendCustomRequestAcunetix("POST", "/api/v1/scans/"+scanModel.ScanID+"/abort", nil, userID)
+		if err != nil {
+			logger.Log.Errorln("Request error:", err)
+			return
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != 204 {
+			logger.Log.Errorln(string(body))
+			logger.Log.Errorln("Response Status:", resp.Status)
+		}
+	}
 }

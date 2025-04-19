@@ -127,3 +127,35 @@ func (ac *AcunetixController) AcunetixGetAllVulnerabilities(c *gin.Context) {
 		return vulnerabilities, nil
 	})
 }
+
+// AcunetixDeleteScans requests deletion of specified Acunetix scans.
+func (ac *AcunetixController) AcunetixDeleteScans(c *gin.Context) {
+	var request struct {
+		ScanUrls []string `json:"scan_urls" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
+		ac.AssetService.DeleteAcunetixScan(request.ScanUrls, userID)
+		return gin.H{"message": "Scan deletion request sent"}, nil
+	})
+}
+
+// AcunetixAbortScans requests aborting of specified Acunetix scans.
+func (ac *AcunetixController) AcunetixAbortScans(c *gin.Context) {
+	var request struct {
+		ScanUrls []string `json:"scan_urls" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
+		ac.AssetService.AbortAcunetixScan(request.ScanUrls, userID)
+		return gin.H{"message": "Scan abort request sent"}, nil
+	})
+}

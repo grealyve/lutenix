@@ -18,4 +18,6 @@ func AcunetixRoutes(router *gin.Engine) {
 	acunetix.GET("/vulnerabilities", acunetixController.AcunetixGetAllVulnerabilities)     // Read yetkisi?
 	acunetix.POST("/startScan", acunetixController.AcunetixTriggerScan)      // Execute/Update yetkisi?
 	acunetix.POST("/targets/delete", acunetixController.AcunetixDeleteTargets)             // Delete yetkisi?
+	acunetix.POST("/scans/delete", acunetixController.AcunetixDeleteScans)               // Delete yetkisi?
+	acunetix.POST("/scans/abort", acunetixController.AcunetixAbortScans)                // Execute/Update yetkisi?
 }
