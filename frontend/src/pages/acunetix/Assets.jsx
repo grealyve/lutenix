@@ -372,6 +372,8 @@ const AcunetixAssets = () => {
     
     try {
       setLoading(true);
+      setError(null);
+      setSuccess(null);
       
       const token = localStorage.getItem('auth_token');
       if (!token) {
@@ -380,18 +382,96 @@ const AcunetixAssets = () => {
         return;
       }
       
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Get the target URLs for the selected assets
+      const targetsToDelete = assets
+        .filter(asset => selectedAssets.includes(asset.id))
+        .map(asset => asset.target);
       
-      const updatedAssets = assets.filter(asset => !selectedAssets.includes(asset.id));
-      
-      setAssets(updatedAssets);
-      
-      const scannedCount = updatedAssets.filter(asset => asset.scanStatus === 'Yes').length;
-      setStats({
-        total: updatedAssets.length,
-        scanned: scannedCount
+      const response = await fetch('http://localhost:4040/api/v1/acunetix/targets/delete', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ target_urls: targetsToDelete })
       });
       
+      if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        setError('Session expired. Please log in again.');
+        setLoading(false);
+        return;
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error deleting assets:', errorText);
+        throw new Error(`Failed to delete assets: ${response.status}`);
+      }
+      
+      // Successfully deleted targets, now refresh the asset list
+      try {
+        const fetchResponse = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (fetchResponse.status === 401) {
+          localStorage.removeItem('auth_token');
+          setError('Session expired. Please log in again.');
+          setLoading(false);
+          return;
+        }
+        
+        if (!fetchResponse.ok) {
+          console.error("Failed to refresh asset list:", fetchResponse.status);
+          // Continue without re-throwing since deletion was successful
+        } else {
+          const result = await fetchResponse.json();
+          
+          if (result && result.data && Array.isArray(result.data.targets)) {
+            const calculateTotalVulnerabilities = (severityCounts) => {
+              if (!severityCounts) return 0;
+              return (
+                (severityCounts.critical || 0) +
+                (severityCounts.high || 0) +
+                (severityCounts.medium || 0) +
+                (severityCounts.low || 0) +
+                (severityCounts.info || 0)
+              );
+            };
+            
+            const transformedData = result.data.targets.map(target => ({
+              id: target.target_id,
+              target: target.address,
+              fqdn: target.fqdn || '',
+              scanStatus: target.last_scan_date ? 'Yes' : 'No',
+              lastScan: target.last_scan_date ? new Date(target.last_scan_date).toLocaleDateString() : 'Never',
+              lastScanStatus: target.last_scan_session_status || '',
+              vulnerabilities: calculateTotalVulnerabilities(target.severity_counts),
+              severityCounts: target.severity_counts || {},
+              description: target.description || '',
+              threat: target.threat || 0
+            }));
+            
+            setAssets(transformedData);
+            
+            const scannedCount = transformedData.filter(asset => asset.scanStatus === 'Yes').length;
+            setStats({
+              total: transformedData.length,
+              scanned: scannedCount
+            });
+          }
+        }
+      } catch (refreshError) {
+        console.error("Error refreshing asset list:", refreshError);
+        // Don't set error state since deletion was successful
+      }
+      
+      setSuccess(`Successfully deleted ${targetsToDelete.length} assets.`);
       setSelectedAssets([]);
       setLoading(false);
     } catch (error) {

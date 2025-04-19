@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -61,8 +60,7 @@ func (r *ReportService) GetAcunetixReports(userID uuid.UUID) {
 
 func (r *ReportService) IsAcunetixReportCreationCompleted(groupName string) bool {
 	if groupNameReportIdMap[groupName].Status == "queued" || groupNameReportIdMap[groupName].Status == "processing" {
-		// TODO: Change this mechanism
-		time.Sleep(3 * time.Minute)
+		return false
 	}
 
 	return groupNameReportIdMap[groupName].Status == "completed"

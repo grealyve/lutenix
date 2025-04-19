@@ -35,7 +35,6 @@ func (ac *AcunetixController) handleAcunetixRequest(c *gin.Context, handler func
 
 	data, err := handler(userID)
 	if err != nil {
-		// Log Acunetix-specific errors, crucial for debugging integration issues.
 		logger.Log.Error("Acunetix request failed:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Acunetix operation failed"})
 		return
@@ -86,11 +85,17 @@ func (ac *AcunetixController) AcunetixGetAllScans(c *gin.Context) {
 
 // AcunetixTriggerScan initiates an Acunetix scan for a specific target.
 func (ac *AcunetixController) AcunetixTriggerScan(c *gin.Context) {
-	targetID := c.Param("target_id")
+	var request struct {
+		ScanUrls []string `json:"scan_urls" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
-		ac.AssetService.TriggerAcunetixScan(targetID, userID)
-		// Note: Scan triggering is likely asynchronous.
+		ac.AssetService.TriggerAcunetixScan(request.ScanUrls, userID)
 		return gin.H{"message": "Scan triggered"}, nil
 	})
 }
@@ -98,7 +103,7 @@ func (ac *AcunetixController) AcunetixTriggerScan(c *gin.Context) {
 // AcunetixDeleteTargets requests deletion of specified Acunetix targets.
 func (ac *AcunetixController) AcunetixDeleteTargets(c *gin.Context) {
 	var request struct {
-		TargetIDs []string `json:"target_ids" binding:"required"`
+		TargetUrls []string `json:"target_urls" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -106,25 +111,8 @@ func (ac *AcunetixController) AcunetixDeleteTargets(c *gin.Context) {
 	}
 
 	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
-		ac.AssetService.DeleteAcunetixTargets(request.TargetIDs, userID)
-		// Note: Target deletion is likely asynchronous.
+		ac.AssetService.DeleteAcunetixTargets(request.TargetUrls, userID)
 		return gin.H{"message": "Target deletion request sent"}, nil
-	})
-}
-
-// AcunetixGetAllTargetsNotScanned retrieves all Acunetix targets (potentially including unscanned).
-func (ac *AcunetixController) AcunetixGetAllTargetsNotScanned(c *gin.Context) {
-	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
-		targets, err := ac.AssetService.GetAllTargetsAcunetix(userID)
-		if err != nil {
-			return nil, err
-		}
-
-		targetList := make([]map[string]string, 0, len(targets))
-		for address, targetID := range targets {
-			targetList = append(targetList, map[string]string{"address": address, "target_id": targetID})
-		}
-		return targetList, nil
 	})
 }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Container, Card, Alert, Badge, Spinner, Modal, Button, Form } from 'react-bootstrap';
+import { Container, Card, Alert, Badge, Spinner, Modal, Button, Form, ListGroup } from 'react-bootstrap';
 import ScanTable from '../../components/ScanTable';
 
 const AcunetixScans = () => {
@@ -13,12 +13,12 @@ const AcunetixScans = () => {
   
   // Modal state variables
   const [showModal, setShowModal] = useState(false);
-  const [targetUrl, setTargetUrl] = useState('');
-  const [urlList, setUrlList] = useState([]);
+  const [targets, setTargets] = useState([]);
+  const [selectedTargets, setSelectedTargets] = useState([]);
+  const [loadingTargets, setLoadingTargets] = useState(false);
   const [alertMessage, setAlertMessage] = useState(null);
   const [alertType, setAlertType] = useState('success');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -89,113 +89,91 @@ const AcunetixScans = () => {
     fetchData();
   }, []);
 
+  const fetchTargets = async () => {
+    setLoadingTargets(true);
+    setAlertMessage(null);
+    
+    try {
+      // Get auth token from localStorage
+      const token = localStorage.getItem('auth_token');
+      
+      // Fetch targets from the Acunetix targets API
+      const response = await fetch('http://localhost:4040/api/v1/acunetix/targets', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // Handle 401 unauthorized error
+      if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        setAlertType('danger');
+        setAlertMessage('Authentication failed. Please log in again.');
+        setLoadingTargets(false);
+        return;
+      }
+      
+      if (!response.ok) {
+        throw new Error(`Targets API request failed with status ${response.status}`);
+      }
+      
+      const responseData = await response.json();
+      
+      // Transform the targets data as needed
+      if (responseData.data && responseData.data.targets) {
+        setTargets(responseData.data.targets);
+      } else {
+        setTargets([]);
+        setAlertType('warning');
+        setAlertMessage('No targets available. Please add targets in the Assets section first.');
+      }
+    } catch (err) {
+      setAlertType('danger');
+      setAlertMessage('Failed to fetch targets. Please try again.');
+      console.error('Error fetching targets:', err);
+    } finally {
+      setLoadingTargets(false);
+    }
+  };
+
   const handleStartScan = () => {
     setShowModal(true);
+    setSelectedTargets([]);
+    fetchTargets();
   };
 
   const handleCloseModal = () => {
     setShowModal(false);
-    setTargetUrl('');
-    setUrlList([]);
+    setSelectedTargets([]);
     setAlertMessage(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
-  const handleAddUrl = () => {
-    if (!targetUrl.trim()) return;
-    
-    // Simple URL validation
-    try {
-      new URL(targetUrl);
-      
-      // Check if URL already exists in the list
-      if (urlList.includes(targetUrl)) {
-        setAlertType('warning');
-        setAlertMessage('This URL is already in the list');
-        return;
-      }
-      
-      setUrlList([...urlList, targetUrl]);
-      setTargetUrl('');
-      setAlertMessage(null);
-    } catch (e) {
-      setAlertType('danger');
-      setAlertMessage('Please enter a valid URL (e.g., https://example.com)');
-    }
-  };
-
-  const handleRemoveUrl = (urlToRemove) => {
-    setUrlList(urlList.filter(url => url !== urlToRemove));
-  };
-
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    if (file.type !== 'text/plain') {
-      setAlertType('danger');
-      setAlertMessage('Please upload a valid .txt file');
-      return;
-    }
-    
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target.result;
-      const lines = content.split('\n').map(line => line.trim()).filter(line => line);
-      
-      // Validate URLs
-      const validUrls = [];
-      const invalidUrls = [];
-      
-      lines.forEach(line => {
-        try {
-          new URL(line);
-          if (!urlList.includes(line) && !validUrls.includes(line)) {
-            validUrls.push(line);
-          }
-        } catch (e) {
-          invalidUrls.push(line);
-        }
-      });
-      
-      if (invalidUrls.length > 0) {
-        setAlertType('warning');
-        setAlertMessage(`Added ${validUrls.length} URLs. ${invalidUrls.length} invalid URLs were skipped.`);
-      } else if (validUrls.length === 0) {
-        setAlertType('warning');
-        setAlertMessage('No new valid URLs found in the file');
+  const handleTargetSelection = (targetId) => {
+    setSelectedTargets(prevSelected => {
+      if (prevSelected.includes(targetId)) {
+        return prevSelected.filter(id => id !== targetId);
       } else {
-        setAlertType('success');
-        setAlertMessage(`Successfully added ${validUrls.length} URLs from the file`);
+        return [...prevSelected, targetId];
       }
-      
-      if (validUrls.length > 0) {
-        setUrlList([...urlList, ...validUrls]);
-      }
-    };
-    
-    reader.readAsText(file);
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTargets.length === targets.length) {
+      // Deselect all if all are selected
+      setSelectedTargets([]);
+    } else {
+      // Select all
+      setSelectedTargets(targets.map(target => target.target_id));
+    }
   };
 
   const handleSubmitScan = async () => {
-    // Combine current targetUrl (if not empty) with urlList
-    const urlsToScan = [...urlList];
-    if (targetUrl.trim() && !urlList.includes(targetUrl)) {
-      try {
-        new URL(targetUrl);
-        urlsToScan.push(targetUrl);
-      } catch (e) {
-        setAlertType('danger');
-        setAlertMessage('Please enter a valid URL before starting the scan');
-        return;
-      }
-    }
-    
-    if (urlsToScan.length === 0) {
+    if (selectedTargets.length === 0) {
       setAlertType('danger');
-      setAlertMessage('Please add at least one URL to scan');
+      setAlertMessage('Please select at least one target to scan');
       return;
     }
     
@@ -205,14 +183,20 @@ const AcunetixScans = () => {
       // Get auth token from localStorage
       const token = localStorage.getItem('auth_token');
       
-      // Make API request with Bearer token
+      // Get the URLs for the selected targets
+      const scan_urls = selectedTargets.map(targetId => {
+        const target = targets.find(t => t.target_id === targetId);
+        return target ? target.address : null;
+      }).filter(url => url); // Remove any null values
+      
+      // Make API request to start the scan
       const response = await fetch('http://localhost:4040/api/v1/acunetix/startScan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ targets: urlsToScan })
+        body: JSON.stringify({ scan_urls })
       });
       
       // Handle 401 unauthorized error
@@ -307,63 +291,62 @@ const AcunetixScans = () => {
               </Alert>
             )}
             
-            <Form>
-              <Form.Group className="mb-3">
-                <Form.Label>Target URL</Form.Label>
-                <div className="d-flex">
-                  <Form.Control 
-                    type="url" 
-                    placeholder="https://example.com" 
-                    value={targetUrl}
-                    onChange={(e) => setTargetUrl(e.target.value)}
-                  />
+            {loadingTargets ? (
+              <div className="text-center my-4">
+                <Spinner animation="border" role="status" variant="primary">
+                  <span className="visually-hidden">Loading targets...</span>
+                </Spinner>
+                <p className="mt-2">Loading available targets...</p>
+              </div>
+            ) : targets.length > 0 ? (
+              <>
+                <div className="d-flex justify-content-between mb-2">
+                  <h5>Select Targets to Scan</h5>
                   <Button 
-                    variant="primary" 
-                    className="ms-2" 
-                    onClick={handleAddUrl}
-                    disabled={!targetUrl.trim()}
+                    variant="outline-primary" 
+                    size="sm"
+                    onClick={handleSelectAll}
                   >
-                    Add
+                    {selectedTargets.length === targets.length ? 'Deselect All' : 'Select All'}
                   </Button>
                 </div>
-                <Form.Text className="text-muted">
-                  Enter a URL to scan or add multiple URLs
-                </Form.Text>
-              </Form.Group>
-              
-              <Form.Group className="mb-3">
-                <Form.Label>Upload URL List</Form.Label>
-                <Form.Control 
-                  type="file" 
-                  accept=".txt"
-                  onChange={handleFileUpload}
-                  ref={fileInputRef}
-                />
-                <Form.Text className="text-muted">
-                  Upload a .txt file with one URL per line
-                </Form.Text>
-              </Form.Group>
-              
-              {urlList.length > 0 && (
-                <div className="mb-3">
-                  <Form.Label>URLs to scan ({urlList.length})</Form.Label>
-                  <div className="border rounded p-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                    {urlList.map((url, index) => (
-                      <div key={index} className="d-flex justify-content-between align-items-center mb-1 p-1 bg-light rounded">
-                        <span>{url}</span>
-                        <Button 
-                          variant="outline-danger" 
-                          size="sm"
-                          onClick={() => handleRemoveUrl(url)}
-                        >
-                          &times;
-                        </Button>
-                      </div>
+                <div className="border rounded p-2" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  <ListGroup>
+                    {targets.map((target) => (
+                      <ListGroup.Item 
+                        key={target.target_id}
+                        className="d-flex justify-content-between align-items-center"
+                        action
+                        active={selectedTargets.includes(target.target_id)}
+                        onClick={() => handleTargetSelection(target.target_id)}
+                      >
+                        <div>
+                          <div><strong>{target.address}</strong></div>
+                          {target.description && (
+                            <small className="text-muted">{target.description}</small>
+                          )}
+                        </div>
+                        <Form.Check 
+                          type="checkbox"
+                          checked={selectedTargets.includes(target.target_id)}
+                          onChange={() => {}} // Handled by the ListGroup.Item onClick
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </ListGroup.Item>
                     ))}
-                  </div>
+                  </ListGroup>
                 </div>
-              )}
-            </Form>
+                <div className="mt-2 text-end">
+                  <small className="text-muted">
+                    Selected {selectedTargets.length} of {targets.length} targets
+                  </small>
+                </div>
+              </>
+            ) : alertMessage ? null : (
+              <div className="text-center my-4">
+                <p>No targets available. Please add targets in the Assets section first.</p>
+              </div>
+            )}
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onClick={handleCloseModal}>
@@ -372,7 +355,7 @@ const AcunetixScans = () => {
             <Button 
               variant="primary" 
               onClick={handleSubmitScan}
-              disabled={isSubmitting || (urlList.length === 0 && !targetUrl.trim())}
+              disabled={isSubmitting || selectedTargets.length === 0}
             >
               {isSubmitting ? 'Starting...' : 'Start Scan'}
             </Button>

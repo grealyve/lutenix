@@ -23,7 +23,62 @@ const AcunetixGenerateReport = () => {
   const [alertVariant, setAlertVariant] = useState('success');
   const [alertMessage, setAlertMessage] = useState('');
 
-  const handleGenerateReport = (event) => {
+  const generateReport = async (title, sites) => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in.');
+      }
+      
+      const response = await fetch('http://localhost:4040/api/v1/acunetix/report', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          title,
+          sites
+        })
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          throw new Error('Authentication expired. Please log in again.');
+        }
+        
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Request failed with status ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      setAlertVariant('success');
+      setAlertMessage(`${data.message}. Report path: ${data.report_path}`);
+      setShowAlert(true);
+      
+      if (title === reportName) {
+        setReportName('');
+        setUrls('');
+        setValidated(false);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error generating report:', error);
+      setAlertVariant('danger');
+      setAlertMessage(error.message || 'Failed to generate report. Please try again.');
+      setShowAlert(true);
+      
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerateReport = async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
     
@@ -36,32 +91,24 @@ const AcunetixGenerateReport = () => {
     setValidated(true);
     setLoading(true);
     
-    // Mock API call - in a real app this would call an actual API
-    setTimeout(() => {
-      console.log('Generating Acunetix report with:', { reportName, urls: urls.split(',').map(url => url.trim()) });
-      setAlertVariant('success');
-      setAlertMessage(`Report "${reportName}" is being generated. You will be notified when it's ready.`);
-      setShowAlert(true);
-      setLoading(false);
-      
-      // Reset form after successful submission
-      setReportName('');
-      setUrls('');
-      setValidated(false);
-    }, 2000);
+    // Parse URLs from comma-separated string to array
+    const sitesArray = urls.split(',').map(url => url.trim()).filter(url => url);
+    
+    try {
+      await generateReport(reportName, sitesArray);
+    } catch (error) {
+      // Error is already handled in generateReport
+    }
   };
 
-  const handleGenerateForAll = () => {
+  const handleGenerateForAll = async () => {
     setLoading(true);
     
-    // Mock API call for generating report for all assets
-    setTimeout(() => {
-      console.log('Generating Acunetix report for all assets');
-      setAlertVariant('success');
-      setAlertMessage('A comprehensive report for all assets is being generated. You will be notified when it\'s ready.');
-      setShowAlert(true);
-      setLoading(false);
-    }, 2000);
+    try {
+      await generateReport('Comprehensive Security Scan', []);
+    } catch (error) {
+      // Error is already handled in generateReport
+    }
   };
 
   return (
@@ -158,70 +205,8 @@ const AcunetixGenerateReport = () => {
                         </>
                       )}
                     </Button>
-                    
-                    <Button 
-                      variant="outline-primary" 
-                      size="lg"
-                      onClick={handleGenerateForAll}
-                      disabled={loading}
-                    >
-                      {loading ? (
-                        <>
-                          <Spinner
-                            as="span"
-                            animation="border"
-                            size="sm"
-                            role="status"
-                            aria-hidden="true"
-                            className="me-2"
-                          />
-                          Generating...
-                        </>
-                      ) : (
-                        'Generate Report for All Assets'
-                      )}
-                    </Button>
                   </div>
                 </Form>
-              </Card.Body>
-            </Card>
-            
-            <Card className="border-0 shadow-sm mt-4">
-              <Card.Body className="p-4">
-                <h3 className="fs-5 mb-3">Recently Generated Reports</h3>
-                <div className="d-flex align-items-center p-3 border-bottom">
-                  <FaFileAlt className="text-primary me-3" size={24} />
-                  <div className="flex-grow-1">
-                    <h6 className="mb-0">Comprehensive Security Scan</h6>
-                    <small className="text-muted">Generated 1 hour ago</small>
-                  </div>
-                  <Badge bg="danger" className="me-2">24 issues</Badge>
-                  <Button variant="outline-primary" size="sm">
-                    View
-                  </Button>
-                </div>
-                <div className="d-flex align-items-center p-3 border-bottom">
-                  <FaFileAlt className="text-primary me-3" size={24} />
-                  <div className="flex-grow-1">
-                    <h6 className="mb-0">Customer Portal Security Report</h6>
-                    <small className="text-muted">Generated 5 hours ago</small>
-                  </div>
-                  <Badge bg="warning" className="me-2">15 issues</Badge>
-                  <Button variant="outline-primary" size="sm">
-                    View
-                  </Button>
-                </div>
-                <div className="d-flex align-items-center p-3">
-                  <FaFileAlt className="text-primary me-3" size={24} />
-                  <div className="flex-grow-1">
-                    <div className="d-flex align-items-center">
-                      <h6 className="mb-0 me-2">Partner API Report</h6>
-                      <Badge bg="info">In Progress</Badge>
-                    </div>
-                    <small className="text-muted">Started 10 minutes ago</small>
-                    <ProgressBar now={60} className="mt-2" style={{ height: '6px' }} />
-                  </div>
-                </div>
               </Card.Body>
             </Card>
           </Col>
@@ -241,6 +226,24 @@ const AcunetixGenerateReport = () => {
                   <li>Detailed remediation instructions</li>
                   <li>Executive and technical summaries</li>
                 </ul>
+                <h5 className="fs-6 mt-4">Vulnerability Categories:</h5>
+                <div className="d-flex flex-wrap gap-2 mt-2">
+                  <Badge bg="danger" className="d-flex align-items-center">
+                    <FaExclamationTriangle className="me-1" /> Critical
+                  </Badge>
+                  <Badge bg="danger" className="d-flex align-items-center">
+                    <FaExclamationTriangle className="me-1" /> High
+                  </Badge>
+                  <Badge bg="warning" text="dark" className="d-flex align-items-center">
+                    <FaExclamationTriangle className="me-1" /> Medium
+                  </Badge>
+                  <Badge bg="info" className="d-flex align-items-center">
+                    <FaInfoCircle className="me-1" /> Low
+                  </Badge>
+                  <Badge bg="secondary" className="d-flex align-items-center">
+                    <FaInfoCircle className="me-1" /> Information
+                  </Badge>
+                </div>
                 <h5 className="fs-6 mt-4">Report Format Options:</h5>
                 <div className="d-flex flex-wrap gap-2 mt-2">
                   <Badge bg="primary" className="d-flex align-items-center">
@@ -249,47 +252,6 @@ const AcunetixGenerateReport = () => {
                   <Badge bg="secondary" className="d-flex align-items-center">
                     <FaFileAlt className="me-1" /> PDF
                   </Badge>
-                  <Badge bg="info" className="d-flex align-items-center">
-                    <FaFileAlt className="me-1" /> CSV
-                  </Badge>
-                  <Badge bg="success" className="d-flex align-items-center">
-                    <FaFileAlt className="me-1" /> XML
-                  </Badge>
-                </div>
-              </Card.Body>
-            </Card>
-            
-            <Card className="border-0 shadow-sm mt-4">
-              <Card.Body className="p-4">
-                <h3 className="fs-5 mb-3">Scan Status</h3>
-                <div className="d-flex align-items-center mb-3">
-                  <FaServer className="text-primary me-3" size={18} />
-                  <div className="flex-grow-1">
-                    <div className="d-flex justify-content-between">
-                      <span>Scanner Status:</span>
-                      <Badge bg="success" className="d-flex align-items-center">
-                        <FaCheck className="me-1" /> Ready
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-                <div className="d-flex align-items-center mb-3">
-                  <FaServer className="text-primary me-3" size={18} />
-                  <div className="flex-grow-1">
-                    <div className="d-flex justify-content-between">
-                      <span>Active Scans:</span>
-                      <span className="fw-bold">1</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="d-flex align-items-center">
-                  <FaServer className="text-primary me-3" size={18} />
-                  <div className="flex-grow-1">
-                    <div className="d-flex justify-content-between">
-                      <span>Queued Scans:</span>
-                      <span className="fw-bold">0</span>
-                    </div>
-                  </div>
                 </div>
               </Card.Body>
             </Card>
@@ -300,4 +262,4 @@ const AcunetixGenerateReport = () => {
   );
 };
 
-export default AcunetixGenerateReport; 
+export default AcunetixGenerateReport;

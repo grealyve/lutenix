@@ -254,10 +254,6 @@ const AcunetixReports = () => {
     return items;
   };
 
-  const handleCreateReport = () => {
-    console.log('Create report clicked');
-  };
-
   const handleDeleteReports = () => {
     console.log('Delete reports clicked:', selectedReports);
   };
@@ -271,14 +267,6 @@ const AcunetixReports = () => {
         <div className="mb-4">
           <Row>
             <Col>
-              <Button 
-                variant="primary" 
-                className="me-2"
-                onClick={handleCreateReport}
-              >
-                <FaPlus className="me-2" />
-                Create Report
-              </Button>
               {selectedReports.length > 0 && (
                 <Button 
                   variant="danger"
