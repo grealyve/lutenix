@@ -37,6 +37,7 @@ func main() {
 
 	routes.AcunetixRoutes(router)
 	routes.AdminRoutes(router)
+	routes.DashboardRoutes(router)
 	routes.SemgrepRoutes(router)
 	routes.UserRoutes(router, authController)
 	routes.ZapRoutes(router)
