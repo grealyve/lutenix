@@ -388,3 +388,26 @@ type AcunetixVulnerabilities struct {
 		Sort       interface{}   `json:"sort"`
 	} `json:"pagination"`
 }
+
+type AcunetixReports struct {
+	Pagination struct {
+		Count      int           `json:"count"`
+		CursorHash string        `json:"cursor_hash"`
+		Cursors    []string `json:"cursors"`
+		Sort       interface{}   `json:"sort"`
+	} `json:"pagination"`
+	Reports []struct {
+		Download       []string  `json:"download"`
+		GenerationDate time.Time `json:"generation_date"`
+		ReportID       string    `json:"report_id"`
+		Source         struct {
+			ListType    string   `json:"list_type"`
+			Description string   `json:"description"`
+			IDList      []string `json:"id_list"`
+		} `json:"source"`
+		Status       string `json:"status"`
+		TemplateID   string `json:"template_id"`
+		TemplateName string `json:"template_name"`
+		TemplateType int    `json:"template_type"`
+	} `json:"reports"`
+}

@@ -12,12 +12,14 @@ import (
 type AcunetixController struct {
 	UserService  *services.UserService
 	AssetService *services.AssetService
+	ReportService *services.ReportService
 }
 
 func NewAcunetixController() *AcunetixController {
 	return &AcunetixController{
 		UserService:  &services.UserService{},
 		AssetService: &services.AssetService{},
+		ReportService: &services.ReportService{},
 	}
 }
 
@@ -157,5 +159,32 @@ func (ac *AcunetixController) AcunetixAbortScans(c *gin.Context) {
 	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
 		ac.AssetService.AbortAcunetixScan(request.ScanUrls, userID)
 		return gin.H{"message": "Scan abort request sent"}, nil
+	})
+}
+
+func (ac *AcunetixController) AcunetixGenerateReport(c *gin.Context) {
+	var request struct {
+		ScanUrls []string `json:"scan_urls" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
+		ac.ReportService.CreateAcunetixReport(request.ScanUrls, userID)
+		return gin.H{"message": "Report generation request sent"}, nil
+	})
+}
+
+// AcunetixGetAllReports retrieves all Acunetix reports for the user.
+func (ac *AcunetixController) AcunetixGetAllReports(c *gin.Context) {
+	ac.handleAcunetixRequest(c, func(userID uuid.UUID) (any, error) {
+		reports, err := ac.ReportService.GetAcunetixReports(userID)
+		if err != nil {
+			return nil, err
+		}
+
+		return reports, nil
 	})
 }

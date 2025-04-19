@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -22,16 +24,14 @@ var (
 	reportPathPrefix     = "./reports/"
 )
 
-const template_id = "11111111-1111-1111-1111-111111111111"
+const template_id = "11111111-1111-1111-1111-111111111126"
 
-// ReportService handles report generation and management
 type ReportService struct {
 	AssetService *AssetService
 	UserService  *UserService
 	ScanService  *ScanService
 }
 
-// NewReportService creates a new report service with the given dependencies
 func NewReportService(userService *UserService, scanService *ScanService, assetService *AssetService) *ReportService {
 	return &ReportService{
 		UserService:  userService,
@@ -40,41 +40,90 @@ func NewReportService(userService *UserService, scanService *ScanService, assetS
 	}
 }
 
-func (r *ReportService) GetAcunetixReports(userID uuid.UUID) {
-	resp, err := utils.SendGETRequestAcunetix("/api/v1/reports?l=99", userID)
+func (r *ReportService) GetAcunetixReports(userID uuid.UUID) (models.AcunetixReports, error) {
+	var reportsResponseModel models.AcunetixReports
+
+	cursor := ""
+
+	for {
+		endpoint := "/api/v1/reports?l=99"
+		if cursor != "" {
+			endpoint += "&c=" + cursor
+		}
+		resp, err := utils.SendGETRequestAcunetix(endpoint, userID)
+		if err != nil {
+			logger.Log.Errorln("Request error:", err)
+			return models.AcunetixReports{}, err
+		}
+		defer resp.Body.Close()
+
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != 200 {
+			logger.Log.Errorln(string(body))
+			logger.Log.Errorln("Response Status:", resp.Status)
+		}
+
+		json.Unmarshal(body, &reportsResponseModel)
+
+		if len(reportsResponseModel.Pagination.Cursors) > 1 {
+			nextCursorIndex := 1
+			nextCursor := reportsResponseModel.Pagination.Cursors[nextCursorIndex]
+			if nextCursor == "" {
+				logger.Log.Debugln("No more Acunetix vulnerabilities to fetch (empty cursor).")
+				break
+			}
+
+			cursor = nextCursor
+			logger.Log.Debugf("Next cursor for Acunetix scans: %s", cursor)
+		} else {
+			logger.Log.Debugln("No pagination cursors found or no more pages.")
+			break
+		}
+	}
+	acunetixSetting, err := utils.AcunetixGetUserSettings(userID)
 	if err != nil {
-		logger.Log.Errorln("Request error:", err)
-		return
+		logger.Log.Errorln("Acunetix setting couldn't fetch:", err)
+		return reportsResponseModel, err
 	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != 200 {
-		logger.Log.Errorln(string(body))
-		logger.Log.Errorln("Response Status:", resp.Status)
+	
+	var updatedReports []struct {
+		Download       []string  `json:"download"`
+		GenerationDate time.Time `json:"generation_date"`
+		ReportID       string    `json:"report_id"`
+		Source         struct {
+			ListType    string   `json:"list_type"`
+			Description string   `json:"description"`
+			IDList      []string `json:"id_list"`
+		} `json:"source"`
+		Status       string `json:"status"`
+		TemplateID   string `json:"template_id"`
+		TemplateName string `json:"template_name"`
+		TemplateType int    `json:"template_type"`
 	}
-
-	json.Unmarshal(body, &reportsResponseModel)
-
-}
-
-func (r *ReportService) IsAcunetixReportCreationCompleted(groupName string) bool {
-	if groupNameReportIdMap[groupName].Status == "queued" || groupNameReportIdMap[groupName].Status == "processing" {
-		return false
+	
+	for _, report := range reportsResponseModel.Reports {
+		downloadLink := acunetixSetting.ScannerURL + ":" + strconv.Itoa(acunetixSetting.ScannerPort) + "/api/v1/reports/" + report.ReportID
+		report.Download = []string{downloadLink}
+		updatedReports = append(updatedReports, report)
 	}
-
-	return groupNameReportIdMap[groupName].Status == "completed"
+	
+	reportsResponseModel.Reports = updatedReports
+	
+	return reportsResponseModel, nil
 }
 
 // Create a report for a list of scans
 func (r *ReportService) CreateAcunetixReport(targetSlice []string, userID uuid.UUID) {
-	assetService := &AssetService{}
-
+	r.AssetService.GetAllAcunetixScan(userID)
 	var scannedIDs []string
-	for _, targetID := range targetSlice {
-		if assetService.IsScannedTargetAcunetix(targetID, userID) {
-			scannedIDs = append(scannedIDs, targetIdScanIdMap[targetID])
+
+	for _, url := range targetSlice {
+		scanModel, ok := scansJsonMap[url]
+		if !ok {
+			logger.Log.Infof("Scan URL %s not found in map", url)
+			continue
 		}
+		scannedIDs = append(scannedIDs, scanModel.ScanID)
 	}
 
 	creatingReportModel := models.GenerateReport{
@@ -110,19 +159,6 @@ func (r *ReportService) CreateAcunetixReport(targetSlice []string, userID uuid.U
 		logger.Log.Errorln("Response Body:", string(body))
 		return
 	}
-}
-
-func (r *ReportService) GetReportDownloadLinkAcunetix(groupName string) (string, error) {
-	if !r.IsAcunetixReportCreationCompleted(groupName) {
-		return "", fmt.Errorf("report is not ready yet")
-	}
-
-	// Get download links
-	if len(groupNameReportIdMap[groupName].Download) > 0 {
-		return groupNameReportIdMap[groupName].Download[0], nil
-	}
-
-	return "", fmt.Errorf("download links couldn't find")
 }
 
 /*

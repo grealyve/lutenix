@@ -20,4 +20,8 @@ func AcunetixRoutes(router *gin.Engine) {
 	acunetix.POST("/targets/delete", acunetixController.AcunetixDeleteTargets)             // Delete yetkisi?
 	acunetix.POST("/scans/delete", acunetixController.AcunetixDeleteScans)               // Delete yetkisi?
 	acunetix.POST("/scans/abort", acunetixController.AcunetixAbortScans)                // Execute/Update yetkisi?
+
+	
+	acunetix.GET("/reports", acunetixController.AcunetixGetAllReports)                   // Read yetkisi?
+	acunetix.POST("/generateReport", acunetixController.AcunetixGenerateReport)          // Execute/Update yetkisi?
 }

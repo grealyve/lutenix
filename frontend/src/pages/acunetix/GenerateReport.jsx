@@ -30,7 +30,7 @@ const AcunetixGenerateReport = () => {
         throw new Error('No authentication token found. Please log in.');
       }
       
-      const response = await fetch('http://localhost:4040/api/v1/acunetix/report', {
+      const response = await fetch('http://localhost:4040/api/v1/acunetix/generateReport', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -38,8 +38,7 @@ const AcunetixGenerateReport = () => {
           'Accept': 'application/json',
         },
         body: JSON.stringify({
-          title,
-          sites
+          scan_urls: sites
         })
       });
 
@@ -56,7 +55,7 @@ const AcunetixGenerateReport = () => {
       const data = await response.json();
       
       setAlertVariant('success');
-      setAlertMessage(`${data.message}. Report path: ${data.report_path}`);
+      setAlertMessage(`${data.message || 'Report generation started successfully'}. ${data.report_path ? `Report path: ${data.report_path}` : ''}`);
       setShowAlert(true);
       
       if (title === reportName) {

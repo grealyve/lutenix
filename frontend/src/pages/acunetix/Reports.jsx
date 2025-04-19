@@ -10,154 +10,68 @@ const AcunetixReports = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedReports, setSelectedReports] = useState([]);
+  const [error, setError] = useState(null);
   
   const itemsPerPage = 8;
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchReports = async () => {
       try {
         setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        setError(null);
         
-        const mockData = [
-          {
-            id: 1,
-            name: 'Comprehensive Security Scan Report',
-            date: '2023-05-20',
-            status: 'Completed',
-            findings: 24,
-            format: 'HTML',
-            description: 'Full vulnerability assessment of all web applications'
-          },
-          {
-            id: 2,
-            name: 'Customer Portal Security Report',
-            date: '2023-05-18',
-            status: 'Completed',
-            findings: 15,
-            format: 'HTML',
-            description: 'Security assessment of the customer portal application'
-          },
-          {
-            id: 3,
-            name: 'Partner API Security Report',
-            date: '2023-05-15',
-            status: 'Completed',
-            findings: 10,
-            format: 'HTML',
-            description: 'Security audit of partner-facing API endpoints'
-          },
-          {
-            id: 4,
-            name: 'E-commerce Platform Scan Report',
-            date: '2023-05-12',
-            status: 'Completed',
-            findings: 18,
-            format: 'HTML',
-            description: 'Vulnerability assessment of e-commerce platform'
-          },
-          {
-            id: 5,
-            name: 'Internal Admin Dashboard Report',
-            date: '2023-05-09',
-            status: 'Completed',
-            findings: 12,
-            format: 'HTML',
-            description: 'Security scan of internal administrative interfaces'
-          },
-          {
-            id: 6,
-            name: 'Mobile API Backend Security Report',
-            date: '2023-05-05',
-            status: 'Completed',
-            findings: 8,
-            format: 'HTML',
-            description: 'Security assessment of backend APIs used by mobile apps'
-          },
-          {
-            id: 7,
-            name: 'Payment Gateway Integration Report',
-            date: '2023-05-02',
-            status: 'Completed',
-            findings: 5,
-            format: 'HTML',
-            description: 'Security audit of payment processing system integration'
-          },
-          {
-            id: 8,
-            name: 'User Authentication System Report',
-            date: '2023-04-28',
-            status: 'Completed',
-            findings: 9,
-            format: 'HTML',
-            description: 'Comprehensive assessment of user authentication mechanisms'
-          },
-          {
-            id: 9,
-            name: 'Content Management System Report',
-            date: '2023-04-25',
-            status: 'Completed',
-            findings: 14,
-            format: 'HTML',
-            description: 'Security scan of the content management system'
-          },
-          {
-            id: 10,
-            name: 'File Upload Functionality Report',
-            date: '2023-04-22',
-            status: 'Completed',
-            findings: 11,
-            format: 'HTML',
-            description: 'Security assessment of file upload capabilities'
-          },
-          {
-            id: 11,
-            name: 'Cloud Infrastructure Scan Report',
-            date: '2023-04-18',
-            status: 'Completed',
-            findings: 16,
-            format: 'HTML',
-            description: 'Security assessment of cloud-hosted web applications'
-          },
-          {
-            id: 12,
-            name: 'Third-party Integration Security Report',
-            date: '2023-04-15',
-            status: 'Completed',
-            findings: 7,
-            format: 'HTML',
-            description: 'Security audit of third-party service integrations'
-          },
-          {
-            id: 13,
-            name: 'Customer Data Processing Report',
-            date: '2023-04-12',
-            status: 'Completed',
-            findings: 13,
-            format: 'HTML',
-            description: 'Assessment of customer data handling and processing'
-          },
-          {
-            id: 14,
-            name: 'Legacy Application Security Report',
-            date: '2023-04-08',
-            status: 'Completed',
-            findings: 22,
-            format: 'HTML',
-            description: 'Security scan of legacy web applications'
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          throw new Error('No authentication token found. Please log in.');
+        }
+        
+        const response = await fetch('http://localhost:4040/api/v1/acunetix/reports', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
           }
-        ];
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            localStorage.removeItem('auth_token');
+            throw new Error('Authentication expired. Please log in again.');
+          }
+          
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `Request failed with status ${response.status}`);
+        }
         
-        setReports(mockData);
-        setFilteredReports(mockData);
-        setLoading(false);
+        const responseData = await response.json();
+        
+        // Check if the response has the expected structure
+        const reportsData = responseData.data?.reports || responseData.reports || [];
+        
+        // Transform API response to component format
+        const formattedReports = reportsData.map(report => ({
+          id: report.report_id,
+          name: report.template_name || 'Unnamed Report',
+          date: new Date(report.generation_date).toLocaleString(),
+          status: report.status.charAt(0).toUpperCase() + report.status.slice(1), // Capitalize status
+          findings: report.source?.id_list?.length || 0,
+          format: 'HTML/PDF',
+          description: report.source?.description || 'Multiple targets scan report',
+          downloadLinks: report.download || []
+        }));
+        
+        setReports(formattedReports);
+        setFilteredReports(formattedReports);
       } catch (error) {
         console.error('Error fetching reports:', error);
+        setError(error.message);
+      } finally {
         setLoading(false);
       }
     };
     
-    fetchData();
+    fetchReports();
   }, []);
   
   useEffect(() => {
@@ -254,14 +168,61 @@ const AcunetixReports = () => {
     return items;
   };
 
-  const handleDeleteReports = () => {
-    console.log('Delete reports clicked:', selectedReports);
+  const handleDeleteReports = async () => {
+    if (selectedReports.length === 0) return;
+    
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in.');
+      }
+      
+      // This is a placeholder. You would need to implement the actual delete endpoint
+      console.log('Delete reports:', selectedReports);
+      
+      // After successful deletion, refresh the reports list
+      const remainingReports = reports.filter(report => !selectedReports.includes(report.id));
+      setReports(remainingReports);
+      setFilteredReports(remainingReports);
+      setSelectedReports([]);
+    } catch (error) {
+      console.error('Error deleting reports:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleDownloadReport = (downloadUrl, format) => {
+    if (!downloadUrl) return;
+    
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      setError('No authentication token found. Please log in.');
+      return;
+    }
+    
+    // Create a temporary link and trigger download
+    const baseUrl = 'http://localhost:4040';
+    const fullUrl = downloadUrl.startsWith('http') ? downloadUrl : `${baseUrl}${downloadUrl}`;
+    
+    // Open in a new tab
+    window.open(fullUrl, '_blank');
+    
+    console.log(`Downloading report in ${format} format:`, fullUrl);
   };
   
   return (
     <div className="page-content">
       <Container fluid>
         <h1 className="mb-4">Acunetix Reports</h1>
+        
+        {error && (
+          <div className="alert alert-danger mb-4" role="alert">
+            {error}
+          </div>
+        )}
         
         {/* Action Buttons */}
         <div className="mb-4">
@@ -327,7 +288,7 @@ const AcunetixReports = () => {
             </div>
             
             <div className="table-responsive">
-              <Table hover>
+              <Table hover> 
                 <thead className="table-light">
                   <tr>
                     <th style={{ width: '40px' }}>
@@ -340,8 +301,8 @@ const AcunetixReports = () => {
                     <th>Report Name</th>
                     <th style={{ width: '120px' }}>Date</th>
                     <th style={{ width: '100px' }}>Status</th>
-                    <th style={{ width: '100px' }}>Findings</th>
-                    <th style={{ width: '150px' }}>Download Link</th>
+                    <th style={{ width: '100px' }}>Targets</th>
+                    <th style={{ width: '150px' }}>Download Links</th>
                     <th style={{ width: '80px' }}>Actions</th>
                   </tr>
                 </thead>
@@ -371,17 +332,37 @@ const AcunetixReports = () => {
                         <td>{report.date}</td>
                         <td>
                           <Badge 
-                            bg={report.status === 'Completed' ? 'success' : report.status === 'In Progress' ? 'warning' : 'danger'}
+                            bg={
+                              report.status === 'Completed' ? 'success' : 
+                              report.status === 'In progress' ? 'warning' : 
+                              'danger'
+                            }
                             className="py-2 px-2"
                           >
                             {report.status}
                           </Badge>
                         </td>
                         <td className="text-center">{report.findings}</td>
-                        <td className="text-center">
-                          <Button variant="outline-primary" size="sm">
-                            <FaFileDownload className="me-1" /> {report.format}
-                          </Button>
+                        <td>
+                          {report.downloadLinks && report.downloadLinks.length > 0 ? (
+                            <div className="d-flex gap-2 justify-content-center">
+                              {report.downloadLinks.map((link, index) => {
+                                const format = link.endsWith('.html') ? 'HTML' : link.endsWith('.pdf') ? 'PDF' : 'File';
+                                return (
+                                  <Button 
+                                    key={index}
+                                    variant="outline-primary" 
+                                    size="sm"
+                                    onClick={() => handleDownloadReport(link, format)}
+                                  >
+                                    <FaFileDownload className="me-1" /> {format}
+                                  </Button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <span className="text-muted">No downloads</span>
+                          )}
                         </td>
                         <td>
                           <OverlayTrigger
@@ -392,6 +373,7 @@ const AcunetixReports = () => {
                               variant="light" 
                               size="sm" 
                               className="text-primary"
+                              onClick={() => handleDownloadReport(report.downloadLinks?.[0])}
                             >
                               <FaEye />
                             </Button>
@@ -420,4 +402,4 @@ const AcunetixReports = () => {
   );
 };
 
-export default AcunetixReports; 
+export default AcunetixReports;
