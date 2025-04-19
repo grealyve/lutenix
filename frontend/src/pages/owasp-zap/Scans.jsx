@@ -95,10 +95,46 @@ const OwaspZapScans = () => {
     setShowModal(true);
   };
 
-  const handleDeleteScan = (selectedScanIds) => {
+  const handleDeleteScan = async (selectedScanIds) => {
     if (window.confirm(`Are you sure you want to delete ${selectedScanIds.length} scan(s)?`)) {
-      setScanData(scanData.filter(scan => !selectedScanIds.includes(scan.id)));
-      alert(`Deleted ${selectedScanIds.length} scan(s)`);
+      try {
+        // Get the targets of selected scans
+        const selectedScans = scanData.filter(scan => selectedScanIds.includes(scan.id));
+        const targetUrls = selectedScans.map(scan => scan.target);
+        
+        const token = localStorage.getItem('auth_token');
+        if (!token) {
+          throw new Error('No authentication token found. Please log in.');
+        }
+        
+        const response = await fetch('http://localhost:4040/api/v1/zap/deleteScans', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            scan_url: targetUrls
+          })
+        });
+
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          throw new Error('Authentication failed. Please log in again.');
+        }
+
+        if (!response.ok) {
+          throw new Error(`Delete request failed with status ${response.status}`);
+        }
+
+        // Update local state after successful API call
+        setScanData(scanData.filter(scan => !selectedScanIds.includes(scan.id)));
+        alert(`Deleted ${selectedScanIds.length} scan(s) successfully`);
+        
+      } catch (error) {
+        console.error('Error deleting scans:', error);
+        alert(`Failed to delete scans: ${error.message}`);
+      }
     }
   };
 

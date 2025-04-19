@@ -16,10 +16,8 @@ func ZapRoutes(router *gin.Engine) {
 	zap.Use(middlewares.Authentication(), middlewares.Authorization("scanner", "use"))
 
 	// Scan Management
-	zap.GET("/scans/:scan_id/status", zapController.ZapGetScanStatus)
-	zap.GET("/scans/:scan_id/spider_status", zapController.ZapGetZapSpiderStatus)
-	zap.PUT("/scans/:scan_id/pause", zapController.ZapPauseScan) // Belki "update" yetkisi?
-	zap.DELETE("/scans/:scan_id", zapController.ZapRemoveScan)   // Belki "delete" yetkisi?
+	zap.POST("/abortScan", zapController.ZapPauseScan)
+	zap.POST("/deleteScans", zapController.ZapRemoveScan)   // Belki "delete" yetkisi?
 	zap.GET("/scans/:scan_id", zapController.ZapGetZapScanStatus)
 
 	// Start scan & List Scans

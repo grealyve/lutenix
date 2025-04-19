@@ -254,69 +254,155 @@ func (a *AssetService) GetZapAlertDetail(alertID string, userID uuid.UUID) (mode
 	return finding, nil
 }
 
-func (a *AssetService) RemoveZapScan(scanID string, userID uuid.UUID) (string, error) {
-	logger.Log.Debugf("RemoveZapScan called for scan ID: %s, user ID: %s", scanID, userID) 
+func (a *AssetService) RemoveZapScan(scanUrls []string, userID uuid.UUID) (string, error) {
+	logger.Log.Debugf("RemoveZapScan called for scan URLs: %v, user ID: %s", scanUrls, userID) 
 	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return "", err    
 	}
 
-	endpoint := fmt.Sprintf("/JSON/spider/action/removeScan/?apikey=%s&scanId=%s",
-		scannerSetting.APIKey,
-		scanID)
-
-	logger.Log.Debugf("Sending ZAP scan removal request to: %s", endpoint)
-
-	resp, err := utils.SendGETRequestZap(endpoint, scannerSetting.APIKey, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
-	if err != nil {
-		logger.Log.Errorln("Error sending ZAP scan removal request:", err)
-		return "", fmt.Errorf("scan couldn't be deleted: %v", err)
+	var user models.User
+	if err := database.DB.Select("company_id").First(&user, "id = ?", userID).Error; err != nil {
+		logger.Log.Errorf("Error fetching user %s: %v", userID, err)
+		return "", fmt.Errorf("user not found: %v", err)
 	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Result string `json:"Result"`
+	
+	var scans []models.Scan
+	if err := database.DB.Where("company_id = ? AND target_url IN ? AND scanner = 'zap'", user.CompanyID, scanUrls).Find(&scans).Error; err != nil {
+		logger.Log.Errorf("Error fetching scans for URLs %v: %v", scanUrls, err)
+		return "", fmt.Errorf("error retrieving scans: %v", err)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		logger.Log.Errorln("Error decoding ZAP scan removal response:", err)
-		return "", fmt.Errorf("deletion response couldn't handle: %v", err)
+	if len(scans) == 0 {
+		logger.Log.Warnf("No scans found for URLs: %v", scanUrls)
+		return "No scans found to delete", nil
 	}
 
-	logger.Log.Infof("ZAP scan removal result for scan ID %s: %s", scanID, result.Result)
-	return result.Result, nil
+	var lastResult string
+	tx := database.DB.Begin()
+	if tx.Error != nil {
+		logger.Log.Errorln("Error starting transaction:", tx.Error)
+		return "", fmt.Errorf("database transaction couldn't start: %v", tx.Error)
+	}
+
+	for _, scan := range scans {
+		if scan.ZapVulnScanID != "" {
+			endpoint := fmt.Sprintf("/JSON/spider/action/removeScan/?apikey=%s&scanId=%s",
+				scannerSetting.APIKey,
+				scan.ZapVulnScanID)
+
+			logger.Log.Debugf("Sending ZAP scan removal request to: %s", endpoint)
+
+			resp, err := utils.SendGETRequestZap(endpoint, scannerSetting.APIKey, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
+			if err != nil {
+				logger.Log.Errorln("Error sending ZAP scan removal request:", err)
+			} else {
+				var result struct {
+					Result string `json:"Result"`
+				}
+
+				if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+					logger.Log.Errorln("Error decoding ZAP scan removal response:", err)
+				} else {
+					lastResult = result.Result
+					logger.Log.Infof("ZAP scan removal result for scan ID %s: %s", scan.ZapVulnScanID, result.Result)
+				}
+				resp.Body.Close()
+			}
+		} else {
+			logger.Log.Warnf("Scan ID %s has no ZAP vulnerability scan ID. Skipping ZAP API call.", scan.ID)
+		}
+
+		if err := tx.Where("scan_id = ?", scan.ID).Delete(&models.Finding{}).Error; err != nil {
+			logger.Log.Errorln("Error deleting findings for scan:", err)
+			tx.Rollback()
+			return "", fmt.Errorf("error deleting findings: %v", err)
+		}
+		
+		if err := tx.Delete(&scan).Error; err != nil {
+			logger.Log.Errorln("Error deleting scan from database:", err)
+			tx.Rollback()
+			return "", fmt.Errorf("error deleting scan from database: %v", err)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		logger.Log.Errorln("Error committing transaction:", err)
+		return "", fmt.Errorf("database transaction failed: %v", err)
+	}
+
+	if lastResult == "" {
+		return "Scans deleted successfully", nil
+	}
+	return lastResult, nil
 }
 
-func (a *AssetService) PauseZapScan(scanID string, userID uuid.UUID) (string, error) {
-	logger.Log.Debugf("PauseZapScan called for scan ID: %s, user ID: %s", scanID, userID)  
+func (a *AssetService) PauseZapScan(scanUrls []string, userID uuid.UUID) (string, error) {
+	logger.Log.Debugf("PauseZapScan called for scan URLs: %v, user ID: %s", scanUrls, userID)  
 	scannerSetting, err := a.getUserScannerZAPSettings(userID)
 	if err != nil {
 		return "", err
 	}
 
-	endpoint := fmt.Sprintf("/JSON/ascan/action/pause/?apikey=%s&scanId=%s",
-		scannerSetting.APIKey,
-		scanID)
-
-	logger.Log.Debugf("Sending ZAP scan pause request to: %s", endpoint)
-	resp, err := utils.SendGETRequestZap(endpoint, scannerSetting.APIKey, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
-	if err != nil {
-		logger.Log.Errorln("Error sending ZAP scan pause request:", err)
-		return "", fmt.Errorf("scan couldn't stopped: %v", err)
+	var user models.User
+	if err := database.DB.Select("company_id").First(&user, "id = ?", userID).Error; err != nil {
+		logger.Log.Errorf("Error fetching user %s: %v", userID, err)
+		return "", fmt.Errorf("user not found: %v", err)
 	}
-	defer resp.Body.Close()
-
-	var result struct {
-		Result string `json:"Result"`
+	
+	var scans []models.Scan
+	if err := database.DB.Where("company_id = ? AND target_url IN ? AND scanner = 'zap'", user.CompanyID, scanUrls).Find(&scans).Error; err != nil {
+		logger.Log.Errorf("Error fetching scans for URLs %v: %v", scanUrls, err)
+		return "", fmt.Errorf("error retrieving scans: %v", err)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		logger.Log.Errorln("Error decoding ZAP scan pause response:", err)
-		return "", fmt.Errorf("stopping response couldn't handle: %v", err)
+	if len(scans) == 0 {
+		logger.Log.Warnf("No scans found for URLs: %v", scanUrls)
+		return "No scans found to pause", nil
 	}
-	logger.Log.Infof("ZAP scan pause result for scan ID %s: %s", scanID, result.Result)
 
-	return result.Result, nil
+	var lastResult string
+	for _, scan := range scans {
+		if scan.ZapVulnScanID != "" {
+			endpoint := fmt.Sprintf("/JSON/ascan/action/pause/?apikey=%s&scanId=%s",
+				scannerSetting.APIKey,
+				scan.ZapVulnScanID)
+
+			logger.Log.Debugf("Sending ZAP scan pause request to: %s", endpoint)
+			resp, err := utils.SendGETRequestZap(endpoint, scannerSetting.APIKey, scannerSetting.ScannerURL, scannerSetting.ScannerPort)
+			if err != nil {
+				logger.Log.Errorln("Error sending ZAP scan pause request:", err)
+				continue
+			}
+
+			var result struct {
+				Result string `json:"Result"`
+			}
+
+			if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+				logger.Log.Errorln("Error decoding ZAP scan pause response:", err)
+				resp.Body.Close()
+				continue
+			}
+			resp.Body.Close()
+
+			lastResult = result.Result
+			logger.Log.Infof("ZAP scan pause result for scan ID %s: %s", scan.ZapVulnScanID, result.Result)
+			
+			// Update scan status in database
+			scan.Status = models.ScanStatusPaused
+			if err := database.DB.Save(&scan).Error; err != nil {
+				logger.Log.Errorln("Error updating scan status in database:", err)
+			}
+		} else {
+			logger.Log.Warnf("Scan ID %s has no ZAP vulnerability scan ID. Skipping ZAP API call.", scan.ID)
+		}
+	}
+
+	if lastResult == "" {
+		return "Scans paused successfully", nil
+	}
+	return lastResult, nil
 }
 
 func (a *AssetService) StartZAPScan(url string, userID uuid.UUID) (*models.Scan, error) {
@@ -544,7 +630,7 @@ func (a *AssetService) FetchAndSaveZapFindingsByURL(baseURL string, userID uuid.
 		return nil, fmt.Errorf("failed to read alerts response body: %v", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ZAP get alerts API returned non-OK status: %d", resp.StatusCode)
+		return nil, fmt.Errorf("ZAP get alerts API returned non-OK status: %d. Body: %s", resp.StatusCode, string(bodyBytes))
 	}
 	var zapResult ZapAlertsResponse
 	if err := json.Unmarshal(bodyBytes, &zapResult); err != nil {

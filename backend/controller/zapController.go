@@ -100,26 +100,40 @@ func (zc *ZapController) ZapGetScanStatus(c *gin.Context) {
 }
 
 func (zc *ZapController) ZapPauseScan(c *gin.Context) {
-	logger.Log.Debugln("ZapPauseScan endpoint called") 
-	scanID := c.Param("scan_id")
-	logger.Log.Debugf("ZapPauseScan called with scan ID: %s", scanID)
+	logger.Log.Debugln("ZapPauseScan endpoint called")
+	var request struct {
+		ScanURL []string `json:"scan_url" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		logger.Log.Errorln("Invalid request body for Pause ZAP scan url:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	logger.Log.Debugf("ZapPauseScan called with scan URLs: %s", request.ScanURL)
 
 	zc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
-		result, err := zc.AssetService.PauseZapScan(scanID, userID)
+		result, err := zc.AssetService.PauseZapScan(request.ScanURL, userID)
 		if err != nil {
 			return nil, err
 		}
-		return gin.H{"result": result}, nil 
+		return gin.H{"result": result}, nil
 	})
 }
 
 func (zc *ZapController) ZapRemoveScan(c *gin.Context) {
-	logger.Log.Debugln("ZapRemoveScan endpoint called") 
-	scanID := c.Param("scan_id")
-	logger.Log.Debugf("ZapRemoveScan called with scan ID: %s", scanID)
+	logger.Log.Debugln("ZapRemoveScan endpoint called")
+	var request struct {
+		ScanURL []string `json:"scan_url" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		logger.Log.Errorln("Invalid request body for Delete ZAP scan url:", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	logger.Log.Debugf("DeleteScans called with scan URLs: %s", request.ScanURL)
 
 	zc.handleZapRequest(c, func(userID uuid.UUID) (any, error) {
-		result, err := zc.AssetService.RemoveZapScan(scanID, userID)
+		result, err := zc.AssetService.RemoveZapScan(request.ScanURL, userID)
 		if err != nil {
 			return nil, err
 		}
