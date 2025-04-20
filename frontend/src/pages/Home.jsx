@@ -94,7 +94,6 @@ const Home = () => {
     }
   };
 
-  // Function to fetch Acunetix scan data
   const fetchAcunetixScans = async () => {
     try {
       setIsLoadingAcunetix(true);
@@ -150,7 +149,6 @@ const Home = () => {
     }
   };
 
-  // Normalize severity names to handle case inconsistencies
   const normalizeSeverity = (severity) => {
     if (!severity) return 'unknown';
     const lowerSeverity = severity.toLowerCase();
@@ -159,18 +157,30 @@ const Home = () => {
   };
 
   // Process vulnerability data for the pie chart
-  const vulnerabilityData = dashboardStats.findings_by_severity.map(item => {
-    const normalizedRisk = normalizeSeverity(item.risk);
-    return {
-      name: item.risk,
-      value: item.count,
-      color: normalizedRisk === 'critical' ? '#dc3545' : 
-             normalizedRisk === 'high' ? '#fd7e14' : 
-             normalizedRisk === 'medium' ? '#ffc107' : 
-             normalizedRisk === 'low' ? '#20c997' : 
-             normalizedRisk === 'info' ? '#0dcaf0' : '#6c757d'
-    };
-  });
+  const vulnerabilityData = dashboardStats.findings_by_severity
+    .reduce((acc, item) => {
+      const normalizedRisk = normalizeSeverity(item.risk);
+      const existingItem = acc.find(i => normalizeSeverity(i.name) === normalizedRisk);
+      
+      if (existingItem) {
+        existingItem.value += item.count;
+      } else {
+        acc.push({
+          name: normalizedRisk === 'medium' ? 'Medium' : 
+                normalizedRisk === 'low' ? 'Low' : 
+                normalizedRisk === 'high' ? 'High' :
+                normalizedRisk === 'critical' ? 'Critical' :
+                normalizedRisk === 'info' ? 'Informational' : item.risk,
+          value: item.count,
+          color: normalizedRisk === 'critical' ? '#dc3545' : 
+                normalizedRisk === 'high' ? '#fd7e14' : 
+                normalizedRisk === 'medium' ? '#ffc107' : 
+                normalizedRisk === 'low' ? '#20c997' : 
+                normalizedRisk === 'info' ? '#0dcaf0' : '#6c757d'
+        });
+      }
+      return acc;
+    }, []);
 
   // Create tool comparison data
   const toolCountsMap = {};

@@ -14,7 +14,8 @@ type UserService struct{}
 
 func (us *UserService) GetUserByID(userID uuid.UUID) (*models.User, error) {
 	var user models.User
-	if err := database.DB.First(&user, "id = ?", userID).Error; err != nil {
+	if err := database.DB.Preload("Company").First(&user, "id = ?", userID).Error; err != nil {
+		logger.Log.Errorf("Error during db query")
 		return nil, err
 	}
 	return &user, nil

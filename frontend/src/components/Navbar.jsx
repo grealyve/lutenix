@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Navbar, Nav, Container, Badge, Collapse } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import lutenixLogo from '../assets/lutenix-logo.png';
-import '../styles/navbar.css'; // Add a separate CSS file for navbar styles
+import '../styles/navbar.css';
 
 const NavbarComponent = () => {
   const location = useLocation();
@@ -12,6 +12,7 @@ const NavbarComponent = () => {
   
   const [expandedTool, setExpandedTool] = useState(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
   
   useEffect(() => {
     if (location.pathname.includes('/semgrep')) {
@@ -22,6 +23,38 @@ const NavbarComponent = () => {
       setExpandedTool('acunetix');
     }
   }, []);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+
+        const response = await fetch('http://localhost:4040/api/v1/users/profile', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.status === 401) {
+          localStorage.removeItem('auth_token');
+          return;
+        }
+
+        if (response.ok) {
+          const data = await response.json();
+          setUserProfile(data);
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    };
+
+    if (user) {
+      fetchUserProfile();
+    }
+  }, [user]);
   
   const toggleToolExpansion = (tool) => {
     if (expandedTool === tool) {
@@ -85,7 +118,9 @@ const NavbarComponent = () => {
               </div>
               <div className="user-info">
                 <div className="user-name">
-                  {user.name || `User ${user.id?.substring(0, 8)}...`}
+                  {userProfile ? 
+                    `${userProfile.name} ${userProfile.surname}` : 
+                    `User ${user.id?.substring(0, 8)}...`}
                 </div>
                 <Badge bg="info" pill>{user.role}</Badge>
               </div>
