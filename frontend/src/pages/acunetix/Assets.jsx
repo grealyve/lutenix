@@ -54,7 +54,6 @@ const AcunetixAssets = () => {
   const itemsPerPage = 8;
   const apiUrl = 'http://localhost:4040/api/v1/acunetix/targets';
 
-  // Fetch assets data
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -164,7 +163,6 @@ const AcunetixAssets = () => {
           : b.scanStatus.localeCompare(a.scanStatus);
       }
       if (sortField === 'lastScan') {
-        // Handle 'Never' as a special case
         if (a.lastScan === 'Never' && b.lastScan !== 'Never') return sortDirection === 'asc' ? 1 : -1;
         if (a.lastScan !== 'Never' && b.lastScan === 'Never') return sortDirection === 'asc' ? -1 : 1;
         if (a.lastScan === 'Never' && b.lastScan === 'Never') return 0;
@@ -245,7 +243,6 @@ const AcunetixAssets = () => {
         return;
       }
       
-      // Parse input - split by newline and filter empty lines
       const urls = targetUrls.split('\n')
         .map(url => url.trim())
         .filter(url => url.length > 0);
@@ -260,7 +257,6 @@ const AcunetixAssets = () => {
       let successCount = 0;
       let errorCount = 0;
       
-      // Process each URL sequentially
       for (const url of urls) {
         try {          
           const response = await fetch('http://localhost:4040/api/v1/acunetix/targets', {
@@ -292,7 +288,6 @@ const AcunetixAssets = () => {
           console.log(`Successfully added target: ${url}`, result);
           successCount++;
           
-          // Add small delay between requests to avoid overwhelming the server
           await new Promise(resolve => setTimeout(resolve, 300));
         } catch (error) {
           console.error(`Error adding target ${url}:`, error);
@@ -300,7 +295,6 @@ const AcunetixAssets = () => {
         }
       }
       
-      // After processing all URLs, refresh the asset list regardless of errors
       try {
         console.log("Refreshing asset list after additions");
         const fetchResponse = await fetch(apiUrl, {
@@ -345,7 +339,6 @@ const AcunetixAssets = () => {
         console.error("Error refreshing asset list:", refreshError);
       }
       
-      // Show result message
       if (errorCount > 0 && successCount > 0) {
         setSuccess(`Successfully added ${successCount} targets.`);
         setError(`Failed to add ${errorCount} targets. Check console for details.`);
@@ -382,7 +375,6 @@ const AcunetixAssets = () => {
         return;
       }
       
-      // Get the target URLs for the selected assets
       const targetsToDelete = assets
         .filter(asset => selectedAssets.includes(asset.id))
         .map(asset => asset.target);
@@ -409,7 +401,6 @@ const AcunetixAssets = () => {
         throw new Error(`Failed to delete assets: ${response.status}`);
       }
       
-      // Successfully deleted targets, now refresh the asset list
       try {
         const fetchResponse = await fetch(apiUrl, {
           method: 'GET',
@@ -428,7 +419,6 @@ const AcunetixAssets = () => {
         
         if (!fetchResponse.ok) {
           console.error("Failed to refresh asset list:", fetchResponse.status);
-          // Continue without re-throwing since deletion was successful
         } else {
           const result = await fetchResponse.json();
           
@@ -468,7 +458,6 @@ const AcunetixAssets = () => {
         }
       } catch (refreshError) {
         console.error("Error refreshing asset list:", refreshError);
-        // Don't set error state since deletion was successful
       }
       
       setSuccess(`Successfully deleted ${targetsToDelete.length} assets.`);

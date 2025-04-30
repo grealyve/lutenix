@@ -80,7 +80,6 @@ const OwaspZapFindings = () => {
     fetchData();
   }, []);
   
-  // State for summary counts
   const [summary, setSummary] = useState({
     High: 0,
     Medium: 0,
@@ -107,7 +106,6 @@ const OwaspZapFindings = () => {
     setCurrentPage(1);
   }, [findings, searchTerm, filterSeverity]);
   
-  // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentItems = filteredFindings.slice(indexOfFirstItem, indexOfLastItem);

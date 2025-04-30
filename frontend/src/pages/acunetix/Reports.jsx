@@ -49,12 +49,11 @@ const AcunetixReports = () => {
         // Check if the response has the expected structure
         const reportsData = responseData.data?.reports || responseData.reports || [];
         
-        // Transform API response to component format
         const formattedReports = reportsData.map(report => ({
           id: report.report_id,
           name: report.template_name || 'Unnamed Report',
           date: new Date(report.generation_date).toLocaleString(),
-          status: report.status.charAt(0).toUpperCase() + report.status.slice(1), // Capitalize status
+          status: report.status.charAt(0).toUpperCase() + report.status.slice(1),
           findings: report.source?.id_list?.length || 0,
           format: 'HTML/PDF',
           description: report.source?.description || 'Multiple targets scan report',
@@ -178,10 +177,8 @@ const AcunetixReports = () => {
         throw new Error('No authentication token found. Please log in.');
       }
       
-      // This is a placeholder. You would need to implement the actual delete endpoint
       console.log('Delete reports:', selectedReports);
-      
-      // After successful deletion, refresh the reports list
+
       const remainingReports = reports.filter(report => !selectedReports.includes(report.id));
       setReports(remainingReports);
       setFilteredReports(remainingReports);
@@ -203,11 +200,9 @@ const AcunetixReports = () => {
       return;
     }
     
-    // Create a temporary link and trigger download
     const baseUrl = 'http://localhost:4040';
     const fullUrl = downloadUrl.startsWith('http') ? downloadUrl : `${baseUrl}${downloadUrl}`;
     
-    // Open in a new tab
     window.open(fullUrl, '_blank');
     
     console.log(`Downloading report in ${format} format:`, fullUrl);

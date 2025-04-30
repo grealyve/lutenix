@@ -61,7 +61,6 @@ const AcunetixFindings = () => {
         if (result && result.data && Array.isArray(result.data.vulnerabilities)) {
           setVulnerabilities(result.data.vulnerabilities);
           
-          // Calculate summary by severity
           const summaryData = result.data.vulnerabilities.reduce((acc, vuln) => {
             const severityLevel = severityMap[vuln.severity]?.level || 'Low';
             acc[severityLevel] = (acc[severityLevel] || 0) + 1;
@@ -92,7 +91,6 @@ const AcunetixFindings = () => {
   useEffect(() => {
     let results = vulnerabilities;
     
-    // Apply search term
     if (searchTerm) {
       results = results.filter(vuln =>
         (vuln.vt_name && vuln.vt_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -110,7 +108,6 @@ const AcunetixFindings = () => {
       }
     }
     
-    // Apply status filter
     if (filterStatus !== 'All') {
       results = results.filter(vuln => 
         vuln.status && vuln.status.toLowerCase() === filterStatus.toLowerCase()
@@ -118,7 +115,7 @@ const AcunetixFindings = () => {
     }
     
     setFilteredVulnerabilities(results);
-    setCurrentPage(1); // Reset to first page when filters change
+    setCurrentPage(1);
   }, [vulnerabilities, searchTerm, filterSeverity, filterStatus]);
   
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -439,7 +436,7 @@ const AcunetixFindings = () => {
                               <div className="d-flex flex-wrap gap-1">
                                 {vuln.tags && vuln.tags
                                   .filter(tag => !tag.startsWith('CVE-') && !tag.startsWith('CWE-'))
-                                  .slice(0, 3) // Limit to 3 tags for display
+                                  .slice(0, 3)
                                   .map((tag, index) => (
                                     <Badge key={index} bg="light" text="dark" className="border">
                                       <FaTag className="me-1" size={10} /> {tag}

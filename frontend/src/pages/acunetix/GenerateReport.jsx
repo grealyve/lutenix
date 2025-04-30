@@ -90,13 +90,11 @@ const AcunetixGenerateReport = () => {
     setValidated(true);
     setLoading(true);
     
-    // Parse URLs from comma-separated string to array
     const sitesArray = urls.split(',').map(url => url.trim()).filter(url => url);
     
     try {
       await generateReport(reportName, sitesArray);
     } catch (error) {
-      // Error is already handled in generateReport
     }
   };
 
@@ -106,7 +104,6 @@ const AcunetixGenerateReport = () => {
     try {
       await generateReport('Comprehensive Security Scan', []);
     } catch (error) {
-      // Error is already handled in generateReport
     }
   };
 

@@ -14,7 +14,7 @@ const Home = () => {
     total_scans: 0,
     total_vulnerabilities: 0
   });
-  // State for individual scanner data
+
   const [zapScans, setZapScans] = useState([]);
   const [acunetixScans, setAcunetixScans] = useState([]);
   const [semgrepScans, setSemgrepScans] = useState([]);
@@ -27,10 +27,8 @@ const Home = () => {
       try {
         setIsLoading(true);
         
-        // Get auth token from localStorage
         const token = localStorage.getItem('auth_token');
         
-        // Fetch dashboard statistics
         const statsResponse = await fetch('http://localhost:4040/api/v1/dashboard/stats', {
           method: 'GET',
           headers: {
@@ -122,7 +120,6 @@ const Home = () => {
     }
   };
 
-  // Function to fetch Semgrep scan data
   const fetchSemgrepScans = async () => {
     try {
       setIsLoadingSemgrep(true);
@@ -182,7 +179,6 @@ const Home = () => {
       return acc;
     }, []);
 
-  // Create tool comparison data
   const toolCountsMap = {};
   dashboardStats.scans_by_type.forEach(item => {
     toolCountsMap[item.scanner] = item.count;
@@ -193,14 +189,12 @@ const Home = () => {
     scans: toolCountsMap[tool]
   }));
 
-  // Filter scans by scanner type from recent_scans in dashboard stats
   const getFilteredScans = (scannerType) => {
     return dashboardStats.recent_scans
       .filter(scan => scan.scanner?.toLowerCase() === scannerType.toLowerCase())
-      .slice(0, 5); // Show only top 5 most recent
+      .slice(0, 5);
   };
 
-  // Helper function to render severity badges with the same styling across tables
   const renderSeverityBadge = (count, severity) => {
     if (!count || count <= 0) return null;
     
@@ -218,7 +212,6 @@ const Home = () => {
     );
   };
 
-  // Helper function to render scan status badge
   const renderStatusBadge = (status) => {
     if (!status) return <Badge bg="secondary">Unknown</Badge>;
     
@@ -236,7 +229,6 @@ const Home = () => {
     );
   };
 
-  // Format vulnerability counts for Acunetix scans
   const formatAcunetixScan = (scan) => {
     return {
       id: scan.scan_id || scan.id,

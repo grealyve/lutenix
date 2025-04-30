@@ -58,7 +58,6 @@ const OwaspZapGenerateReport = () => {
       setAlertMessage(`${data.message}. Report path: ${data.report_path}`);
       setShowAlert(true);
       
-      // Reset form after successful submission
       if (title === reportName) {
         setReportName('');
         setUrls('');
@@ -91,7 +90,6 @@ const OwaspZapGenerateReport = () => {
     setValidated(true);
     setLoading(true);
     
-    // Parse URLs from comma-separated string to array
     const sitesArray = urls.split(',').map(url => url.trim()).filter(url => url);
     
     try {

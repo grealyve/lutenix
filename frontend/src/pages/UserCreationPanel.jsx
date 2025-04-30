@@ -11,6 +11,7 @@ import {
 } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import punycode from 'punycode';
 
 const UserCreationPanel = () => {
   const { user, token } = useAuth();
@@ -75,13 +76,16 @@ const UserCreationPanel = () => {
     setLoading(true);
     
     try {
+      const decodedEmail = punycode.toUnicode(formData.email);
+      const updatedFormData = { ...formData, email: decodedEmail };
+      
       const response = await fetch('http://localhost:4040/api/v1/admin/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(updatedFormData)
       });
       
       const data = await response.json();

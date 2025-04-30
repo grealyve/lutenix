@@ -173,7 +173,6 @@ const ScanTable = ({
   );
 };
 
-// Helper function to get appropriate color based on status
 const getStatusColor = (status) => {
   switch (status?.toLowerCase()) {
     case 'finished':

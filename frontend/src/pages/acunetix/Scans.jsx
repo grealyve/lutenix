@@ -25,10 +25,8 @@ const AcunetixScans = () => {
       try {
         setIsLoading(true);
         
-        // Get auth token from localStorage
         const token = localStorage.getItem('auth_token');
         
-        // Make API request with Bearer token
         const response = await fetch('http://localhost:4040/api/v1/acunetix/scans', {
           method: 'GET',
           headers: {
@@ -37,7 +35,6 @@ const AcunetixScans = () => {
           }
         });
         
-        // Handle 401 unauthorized error
         if (response.status === 401) {
           localStorage.removeItem('auth_token');
           setError('Authentication failed. Please log in again.');
@@ -94,10 +91,8 @@ const AcunetixScans = () => {
     setAlertMessage(null);
     
     try {
-      // Get auth token from localStorage
       const token = localStorage.getItem('auth_token');
       
-      // Fetch targets from the Acunetix targets API
       const response = await fetch('http://localhost:4040/api/v1/acunetix/targets', {
         method: 'GET',
         headers: {
@@ -106,7 +101,6 @@ const AcunetixScans = () => {
         }
       });
       
-      // Handle 401 unauthorized error
       if (response.status === 401) {
         localStorage.removeItem('auth_token');
         setAlertType('danger');
@@ -121,7 +115,6 @@ const AcunetixScans = () => {
       
       const responseData = await response.json();
       
-      // Transform the targets data as needed
       if (responseData.data && responseData.data.targets) {
         setTargets(responseData.data.targets);
       } else {
@@ -422,7 +415,7 @@ const AcunetixScans = () => {
                         <Form.Check 
                           type="checkbox"
                           checked={selectedTargets.includes(target.target_id)}
-                          onChange={() => {}} // Handled by the ListGroup.Item onClick
+                          onChange={() => {}}
                           onClick={(e) => e.stopPropagation()}
                         />
                       </ListGroup.Item>

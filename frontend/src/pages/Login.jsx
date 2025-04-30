@@ -3,6 +3,7 @@ import { Container, Row, Col, Card, Form, Button, Alert, Spinner } from 'react-b
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import lutenixLogo from '../assets/lutenix-logo.png';
+import punycode from 'punycode';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -29,7 +30,8 @@ const Login = () => {
     setIsSubmitting(true);
     
     try {
-      const result = await login(email, password);
+      const decodedEmail = punycode.toUnicode(email);
+      const result = await login(decodedEmail, password);
       
       if (result.success) {
         navigate('/');

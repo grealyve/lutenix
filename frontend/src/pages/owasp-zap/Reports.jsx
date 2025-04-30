@@ -47,7 +47,6 @@ const OwaspZapReports = () => {
         
         const data = await response.json();
         
-        // Transform API data to match the expected format
         const formattedReports = data.reports.map(report => ({
           id: report.id,
           name: report.name,
@@ -171,7 +170,6 @@ const OwaspZapReports = () => {
   
   const handleDownloadReport = (download_link) => {
     console.log('Download report:', download_link);
-    // Implement download functionality based on download_link
   };
   
   return (

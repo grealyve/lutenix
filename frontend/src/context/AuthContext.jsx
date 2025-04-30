@@ -70,7 +70,6 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      // Call the logout API endpoint
       await authAPI.logout();
     } catch (error) {
       console.error('Error during logout:', error);

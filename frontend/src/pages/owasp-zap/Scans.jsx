@@ -11,7 +11,6 @@ const OwaspZapScans = () => {
     vulnerabilities: 0
   });
   
-  // Modal states
   const [showModal, setShowModal] = useState(false);
   const [targetUrl, setTargetUrl] = useState('');
   const [urlList, setUrlList] = useState([]);
@@ -37,7 +36,6 @@ const OwaspZapScans = () => {
   
         if (response.status === 401) {
           console.error('Authentication failed (401). Token might be expired.');
-          //Clear the token and redirect to login
           localStorage.removeItem('authToken');
           history.push('/login');
           throw new Error('Authentication failed. Please log in again.');
@@ -49,7 +47,6 @@ const OwaspZapScans = () => {
   
         const responseData = await response.json();
   
-        // Check if the expected structure is present
         if (!responseData || !responseData.data || !Array.isArray(responseData.data.scans)) {
           console.error("Unexpected API response structure:", responseData);
           throw new Error("Received invalid data format from the server.");
@@ -98,7 +95,6 @@ const OwaspZapScans = () => {
   const handleDeleteScan = async (selectedScanIds) => {
     if (window.confirm(`Are you sure you want to delete ${selectedScanIds.length} scan(s)?`)) {
       try {
-        // Get the targets of selected scans
         const selectedScans = scanData.filter(scan => selectedScanIds.includes(scan.id));
         const targetUrls = selectedScans.map(scan => scan.target);
         

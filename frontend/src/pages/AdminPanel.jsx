@@ -166,7 +166,7 @@ const AdminPanel = () => {
       });
       
       showAlertMessage('success', 'User created successfully');
-      fetchUsers(); // Refresh the user list
+      fetchUsers();
     } catch (error) {
       console.error('Error creating user:', error);
       showAlertMessage('danger', error.message || 'Failed to create user');
@@ -182,12 +182,10 @@ const AdminPanel = () => {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
       
-      // Process each selected user
       for (const userId of selectedUsers) {
         const userToDelete = users.find(user => user.id === userId);
         if (!userToDelete) continue;
         
-        // Skip deletion of admin user (if applicable)
         if (userToDelete.isAdmin && userToDelete.email === 'admin@admin.com') {
           showAlertMessage('danger', 'Cannot delete main admin account');
           continue;
@@ -214,7 +212,7 @@ const AdminPanel = () => {
       
       setSelectedUsers([]);
       showAlertMessage('success', 'Selected users deleted successfully');
-      fetchUsers(); // Refresh the user list
+      fetchUsers();
     } catch (error) {
       console.error('Error deleting users:', error);
       showAlertMessage('danger', error.message || 'Failed to delete users');
@@ -230,7 +228,6 @@ const AdminPanel = () => {
       setLoading(true);
       const token = localStorage.getItem('auth_token');
       
-      // Process each selected user
       for (const userId of selectedUsers) {
         const userToUpdate = users.find(user => user.id === userId);
         if (!userToUpdate) continue;
@@ -256,7 +253,8 @@ const AdminPanel = () => {
       
       setSelectedUsers([]);
       showAlertMessage('success', 'Selected users granted admin privileges');
-      fetchUsers(); // Refresh the user list
+      // Refresh the user list
+      fetchUsers(); 
     } catch (error) {
       console.error('Error making users admin:', error);
       showAlertMessage('danger', error.message || 'Failed to update admin privileges');
@@ -278,7 +276,6 @@ const AdminPanel = () => {
         const userToUpdate = users.find(user => user.id === userId);
         if (!userToUpdate) continue;
         
-        // Case-insensitive comparison to ensure admin protection
         if (userToUpdate.email.toLowerCase() === 'admin@admin.com'.toLowerCase()) {
           showAlertMessage('danger', 'Cannot change main admin account to regular user');
           console.log('Attempted to change admin account - operation blocked');
@@ -310,7 +307,7 @@ const AdminPanel = () => {
       
       setSelectedUsers([]);
       showAlertMessage('success', 'Selected users changed to regular users');
-      fetchUsers(); // Refresh the user list
+      fetchUsers();
     } catch (error) {
       console.error('Error making regular users:', error);
       showAlertMessage('danger', error.message || 'Failed to update user privileges');
