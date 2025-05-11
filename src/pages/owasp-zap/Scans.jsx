@@ -19,6 +19,49 @@ const OwaspZapScans = () => {
   const [alertType, setAlertType] = useState('success');
   const fileInputRef = useRef(null);
 
+  const fetchVulnerabilities = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in.');
+      }
+      
+      const response = await fetch('http://localhost:4040/api/v1/zap/findings', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/json',
+        }
+      });
+
+      if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        throw new Error('Authentication failed. Please log in again.');
+      }
+      
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
+      }
+      
+      const responseData = await response.json();
+      
+      if (!responseData || !responseData.data || !Array.isArray(responseData.data)) {
+        console.error("Unexpected API response structure:", responseData);
+        throw new Error("Received invalid data format from the server.");
+      }
+
+      const totalVulnerabilities = responseData.data.length;
+      
+      setScanStats(prev => ({
+        ...prev,
+        vulnerabilities: totalVulnerabilities
+      }));
+      
+    } catch (err) {
+      console.error('Error fetching vulnerability data:', err);
+    }
+  };
+
   const fetchData = async () => {
     try {
       setIsLoading(true);
@@ -70,10 +113,10 @@ const OwaspZapScans = () => {
         setScanData(formattedData);
   
         const totalAssets = formattedData.length;
-        setScanStats({
-          scannedAssets: totalAssets,
-          vulnerabilities: 0
-        });
+        setScanStats(prev => ({
+          ...prev,
+          scannedAssets: totalAssets
+        }));
   
         setError(null);
         setIsLoading(false);
@@ -85,7 +128,9 @@ const OwaspZapScans = () => {
     };
 
   useEffect(() => {
+    // Fetch both scan data and vulnerability data
     fetchData();
+    fetchVulnerabilities();
   }, []);
 
   const handleStartScan = () => {
@@ -126,6 +171,10 @@ const OwaspZapScans = () => {
         // Update local state after successful API call
         setScanData(scanData.filter(scan => !selectedScanIds.includes(scan.id)));
         alert(`Deleted ${selectedScanIds.length} scan(s) successfully`);
+        
+        // Refresh scan and vulnerability data
+        fetchData();
+        fetchVulnerabilities();
         
       } catch (error) {
         console.error('Error deleting scans:', error);
@@ -218,7 +267,9 @@ const OwaspZapScans = () => {
         fileInputRef.current.value = '';
       }
       
+      // Refresh scan and vulnerability data
       await fetchData();
+      await fetchVulnerabilities();
       
     } catch (error) {
       console.error('Error starting scan:', error);

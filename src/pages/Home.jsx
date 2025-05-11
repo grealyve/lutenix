@@ -84,7 +84,19 @@ const Home = () => {
       }
       
       const data = await response.json();
-      setZapScans(Array.isArray(data.data) ? data.data : []);
+      // Check different possible structures and handle appropriately
+      let scans = [];
+      if (Array.isArray(data)) {
+        scans = data;
+      } else if (Array.isArray(data.data)) {
+        scans = data.data;
+      } else if (data.data && Array.isArray(data.data.scans)) {
+        scans = data.data.scans;
+      } else if (typeof data === 'object' && Object.keys(data).length > 0) {
+        // Fallback if we get an unexpected structure but it has content
+        scans = [data];
+      }
+      setZapScans(scans);
       setIsLoadingZap(false);
     } catch (err) {
       console.error('Error fetching ZAP scan data:', err);
@@ -180,9 +192,25 @@ const Home = () => {
     }, []);
 
   const toolCountsMap = {};
+  // First populate from dashboard stats
   dashboardStats.scans_by_type.forEach(item => {
-    toolCountsMap[item.scanner] = item.count;
+    toolCountsMap[item.scanner.toLowerCase()] = item.count;
   });
+  
+  // Ensure all scanner types are represented
+  // If acunetix is missing in dashboard stats but we have acunetix scans data
+  if (!toolCountsMap['acunetix'] && acunetixScans.length > 0) {
+    toolCountsMap['acunetix'] = acunetixScans.length;
+  }
+  
+  // Same for other tools
+  if (!toolCountsMap['zap'] && zapScans.length > 0) {
+    toolCountsMap['zap'] = zapScans.length;
+  }
+  
+  if (!toolCountsMap['semgrep'] && semgrepScans.length > 0) {
+    toolCountsMap['semgrep'] = semgrepScans.length;
+  }
 
   const toolComparison = Object.keys(toolCountsMap).map(tool => ({
     name: tool.toUpperCase(),
@@ -222,9 +250,12 @@ const Home = () => {
       statusLower === 'queued' || statusLower === 'pending' ? 'info' :
       statusLower === 'failed' || statusLower === 'error' ? 'danger' : 'secondary';
     
+    // Capitalize first letter of status for consistent display
+    const displayStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+    
     return (
       <Badge bg={badgeVariant}>
-        {status}
+        {displayStatus}
       </Badge>
     );
   };
@@ -607,35 +638,52 @@ const Home = () => {
               </Card.Body>
             </Card>
 
-            {/* Scan Status Distribution */}
+            {}
             <Card className="shadow-sm border-0 mb-4">
               <Card.Body>
                 <Card.Title className="mb-4">Scan Status Distribution</Card.Title>
                 <Row>
-                  {dashboardStats.scans_by_status.map((statusItem, index) => {
-                    const statusLower = statusItem.status.toLowerCase();
-                    const bgColor = 
-                      statusLower === 'completed' ? 'bg-success' :
-                      statusLower === 'processing' || statusLower === 'running' ? 'bg-primary' :
-                      statusLower === 'queued' || statusLower === 'pending' ? 'bg-info' :
-                      statusLower === 'failed' || statusLower === 'error' ? 'bg-danger' : 'bg-secondary';
-                    
-                    return (
-                      <Col key={index} md={4} lg={3} className="mb-3">
-                        <Card className={`${bgColor} bg-gradient text-white`}>
-                          <Card.Body className="py-3">
-                            <div className="d-flex justify-content-between align-items-center">
-                              <div>
-                                <h6 className="mb-0">{statusItem.status}</h6>
-                                <small>Status</small>
+                  {(() => {
+                    // Group counts by status
+                    const statusGroups = {};
+                    dashboardStats.scans_by_status.forEach(item => {
+                      const statusLower = item.status.toLowerCase();
+                      if (!statusGroups[statusLower]) {
+                        statusGroups[statusLower] = {
+                          status: statusLower,
+                          count: 0
+                        };
+                      }
+                      statusGroups[statusLower].count += item.count;
+                    });
+
+                    return Object.values(statusGroups).map((statusItem, index) => {
+                      const statusLower = statusItem.status;
+                      const bgColor = 
+                        statusLower === 'completed' ? 'bg-success' :
+                        statusLower === 'processing' || statusLower === 'running' ? 'bg-primary' :
+                        statusLower === 'queued' || statusLower === 'pending' ? 'bg-info' :
+                        statusLower === 'failed' || statusLower === 'error' ? 'bg-danger' : 'bg-secondary';
+                      
+                      const displayStatus = statusLower.charAt(0).toUpperCase() + statusLower.slice(1);
+                      
+                      return (
+                        <Col key={index} md={4} lg={3} className="mb-3">
+                          <Card className={`${bgColor} bg-gradient text-white`}>
+                            <Card.Body className="py-3">
+                              <div className="d-flex justify-content-between align-items-center">
+                                <div>
+                                  <h6 className="mb-0">{displayStatus}</h6>
+                                  <small>Status</small>
+                                </div>
+                                <h4 className="mb-0">{statusItem.count}</h4>
                               </div>
-                              <h4 className="mb-0">{statusItem.count}</h4>
-                            </div>
-                          </Card.Body>
-                        </Card>
-                      </Col>
-                    );
-                  })}
+                            </Card.Body>
+                          </Card>
+                        </Col>
+                      );
+                    });
+                  })()}
                 </Row>
               </Card.Body>
             </Card>

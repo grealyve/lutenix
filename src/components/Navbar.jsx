@@ -3,6 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Navbar, Nav, Container, Badge, Collapse } from 'react-bootstrap';
 import { useAuth } from '../context/AuthContext';
 import secmanLogo from '../assets/secman-logo.png';
+import semgrepLogo from '../assets/semgrep-logo.png';
+import zapLogo from '../assets/zap-logo.png';
+import acunetixLogo from '../assets/acunetix-logo.png';
 import '../styles/navbar.css';
 
 const NavbarComponent = () => {
@@ -146,7 +149,7 @@ const NavbarComponent = () => {
                   className={`nav-item-link nav-group-header ${isToolPathActive('/semgrep') ? 'active' : ''}`}
                 >
                   <div className="nav-item-content">
-                    <i className="bi bi-code-square nav-icon"></i>
+                    <img src={semgrepLogo} alt="Semgrep Logo" className="tool-logo nav-icon" />
                     <span className="nav-text">Semgrep</span>
                   </div>
                   <i className={`bi bi-chevron-${expandedTool === 'semgrep' ? 'up' : 'down'} nav-expand-icon`}></i>
@@ -189,7 +192,7 @@ const NavbarComponent = () => {
                   className={`nav-item-link nav-group-header ${isToolPathActive('/owasp-zap') ? 'active' : ''}`}
                 >
                   <div className="nav-item-content">
-                    <i className="bi bi-shield-check nav-icon"></i>
+                    <img src={zapLogo} alt="OWASP ZAP Logo" className="tool-logo nav-icon" />
                     <span className="nav-text">OWASP ZAP</span>
                   </div>
                   <i className={`bi bi-chevron-${expandedTool === 'owaspzap' ? 'up' : 'down'} nav-expand-icon`}></i>
@@ -240,7 +243,7 @@ const NavbarComponent = () => {
                   className={`nav-item-link nav-group-header ${isToolPathActive('/acunetix') ? 'active' : ''}`}
                 >
                   <div className="nav-item-content">
-                    <i className="bi bi-bug nav-icon"></i>
+                    <img src={acunetixLogo} alt="Acunetix Logo" className="tool-logo nav-icon" />
                     <span className="nav-text">Acunetix</span>
                   </div>
                   <i className={`bi bi-chevron-${expandedTool === 'acunetix' ? 'up' : 'down'} nav-expand-icon`}></i>
