@@ -2,7 +2,43 @@
 
 SecMan is a comprehensive security scanning platform that integrates multiple industry-standard security scanners into a unified dashboard, providing real-time vulnerability assessment and management.
 
-![SecMan Dashboard](docs/dashboard-screenshot.png)
+![image](https://github.com/user-attachments/assets/ed9be856-c642-4676-8c0b-a9978736f257)
+
+![image](https://github.com/user-attachments/assets/619ecc95-b0ff-4e31-9e65-392e2989a660)
+
+## Getting Started
+
+### Prerequisites
+- Node.js (v14+) for frontend
+- Go (v1.22.5+) for backend
+- PostgreSQL database
+- Redis for token management
+- Modern web browser
+- Access to security scanner APIs (ZAP, Acunetix, Semgrep)
+
+### Installation
+
+1. Clone the repository
+```bash
+git clone https://github.com/grealyve/secman.git
+cd secman
+```
+
+2. Install dependencies
+```bash
+go mod tidy
+npm install
+```
+
+3. Start the development server
+```bash
+npm run dev
+```
+
+4. Start the backend server
+```bash
+go run main.go
+```
 
 ## Features
 
@@ -55,60 +91,21 @@ The application automatically migrates the following models:
 - Reports
 - ScannerSettings
 
-## API Endpoints
+## Dashboard Screenshots
 
-### Dashboard API
-- `GET /api/v1/dashboard/stats` - Retrieve dashboard statistics and metrics
+#### Semgrep Findings:
+![image](https://github.com/user-attachments/assets/d881f712-8298-4247-8259-b6595ace2635)
 
-### Authentication & User Management
-- `POST /api/v1/users/login` - User authentication
-- `GET /api/v1/users/logout` - User logout with token blacklisting
-- `GET /api/v1/users/profile` - Get current user profile
-- `POST /api/v1/users/updateProfile` - Update user profile information
-- `POST /api/v1/users/updateScanner` - Update scanner configuration settings
 
-### Admin API
-- `POST /api/v1/admin/register` - Register new users
-- `POST /api/v1/admin/createCompany` - Create a new company
-- `POST /api/v1/admin/addCompanyUser` - Add a user to a company
-- `POST /api/v1/admin/makeAdmin` - Promote user to admin role
-- `POST /api/v1/admin/makeUser` - Demote admin to user role
-- `POST /api/v1/admin/deleteUser` - Delete a user
-- `GET /api/v1/admin/getUsers` - List all users
+#### Owasp ZAP Start Scan:
+![image](https://github.com/user-attachments/assets/b9852297-641b-4620-bba9-d8c2ed8b2a87)
 
-### OWASP ZAP API
-- `POST /api/v1/zap/scans` - Start a new ZAP scan
-- `GET /api/v1/zap/scans` - List all ZAP scans
-- `GET /api/v1/zap/scans/:scan_id` - Get a specific scan status
-- `POST /api/v1/zap/abortScan` - Pause an active scan
-- `POST /api/v1/zap/deleteScans` - Delete scans
-- `GET /api/v1/zap/alerts/:scan_id` - Get alerts for a specific scan
-- `GET /api/v1/zap/alerts/detail/:alert_id` - Get detailed alert information
-- `GET /api/v1/zap/results` - Get scan results by URL
-- `GET /api/v1/zap/findings` - Get all user findings
-- `POST /api/v1/zap/report` - Generate a ZAP report
-- `GET /api/v1/zap/reports` - List all ZAP reports
+#### Acunetix Adding Assets:
+![image](https://github.com/user-attachments/assets/3f34fb1d-78d8-42fb-9b96-477875b9ae97)
 
-### Acunetix API
-- `GET /api/v1/acunetix/targets` - List all targets
-- `POST /api/v1/acunetix/targets` - Add a new target
-- `POST /api/v1/acunetix/targets/delete` - Delete targets
-- `GET /api/v1/acunetix/scans` - List all scans
-- `POST /api/v1/acunetix/startScan` - Start a new scan
-- `POST /api/v1/acunetix/scans/delete` - Delete scans
-- `POST /api/v1/acunetix/scans/abort` - Abort running scans
-- `GET /api/v1/acunetix/vulnerabilities` - List all vulnerabilities
-- `GET /api/v1/acunetix/reports` - List all reports
-- `POST /api/v1/acunetix/generateReport` - Generate a new report
+#### Generating Report:
+![image](https://github.com/user-attachments/assets/e4c14f9d-1665-4466-900a-47e7f9e68fca)
 
-### Semgrep API
-- `GET /api/v1/semgrep/scanDetails` - Get scan details
-- `GET /api/v1/semgrep/deployments` - List all deployments
-- `GET /api/v1/semgrep/projects` - List all projects
-- `GET /api/v1/semgrep/scans` - List all scans
-- `GET /api/v1/semgrep/findings` - List all findings
-- `GET /api/v1/semgrep/secrets` - List detected secrets
-- `GET /api/v1/semgrep/repository` - List all repositories
 
 ## Frontend Routes
 
@@ -155,42 +152,6 @@ The system supports the following user interactions:
 - Create, delete and manage users
 - Manage authorization and permissions
 - Edit system configuration
-
-![Use Case Diagram](docs/use-case-diagram.png)
-
-## Getting Started
-
-### Prerequisites
-- Node.js (v14+) for frontend
-- Go (v1.22.5+) for backend
-- PostgreSQL database
-- Redis for token management
-- Modern web browser
-- Access to security scanner APIs (ZAP, Acunetix, Semgrep)
-
-### Installation
-
-1. Clone the repository
-```bash
-git clone https://github.com/grealyve/secman.git
-cd secman
-```
-
-2. Install dependencies
-```bash
-go mod tidy
-npm install
-```
-
-3. Start the development server
-```bash
-npm run dev
-```
-
-4. Start the backend server
-```bash
-go run main.go
-```
 
 ## Security
 
